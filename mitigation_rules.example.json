@@ -1,0 +1,1 @@
+{"version":"custom-mitigation-1","mitigations":{"100":{"name":"Party Mitigation","kind":"damage_reduction","value":0.10},"200":{"name":"Personal Mitigation","kind":"damage_reduction","value":0.20}}}

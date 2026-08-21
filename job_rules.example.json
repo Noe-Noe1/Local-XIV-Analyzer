@@ -1,0 +1,1 @@
+{"version":"custom-1","patch":"7.x","jobs":{"NIN":{"role":"melee","max_gcd_gap_ms":3500,"required_actions":[123],"combos":[[1,2,3]],"cooldowns":{"123":60000}}}}

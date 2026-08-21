@@ -1,0 +1,1 @@
+{"version":"custom-boss-1","encounters":{"99":{"phases":[{"id":1,"start_ms":0,"end_ms":60000},{"id":2,"start_ms":60000}],"required_interrupts":[1001],"avoidable_damage":[2001],"mechanics":[{"ability_id":3001,"min_count":1}]}}}
