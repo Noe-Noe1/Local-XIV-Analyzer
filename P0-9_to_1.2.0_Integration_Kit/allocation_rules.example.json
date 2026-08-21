@@ -1,0 +1,1 @@
+{"version":"custom-allocation-1","buffs":{"100":{"name":"Party Buff","kind":"damage_percent","value":0.10,"targeting":"party"},"200":{"name":"Single Buff","kind":"damage_percent","value":0.05,"targeting":"single"},"300":{"name":"Crit Buff","kind":"crit_rate","value":0.20,"bonus_multiplier":0.40,"targeting":"party"}}}
