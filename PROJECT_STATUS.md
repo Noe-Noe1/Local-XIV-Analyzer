@@ -107,6 +107,27 @@
 - Pull Request経由でmainへ統合する
 - 設計、実装、テスト、Blockedを区別して記録する
 ### Real ACT Log Validation
+### Technical Finish Rule Validation
+
+- Status ID: `1822` (`0x71E`)
+- Status name: `Technical Finish`
+- Rule type: `damage_percent`
+- Provisional value: `5%`
+- Targeting: party
+- Confidence: medium
+- Source method: official job guide and ACT log verification
+- ACT log duration: 20 seconds
+- Successful steps determine the actual bonus from 1% to 5%
+- Current ACT importer does not preserve successful step count
+- The provisional rule therefore uses the maximum 4-step value of 5%
+- Real-log validation result:
+  - Fights: 54
+  - Damage events: 79,776
+  - Allocation rows: 12,243
+  - Allocated damage: 25,875,279.619
+  - Warnings: 0
+- Engine output and database allocation totals matched
+- Remaining task: preserve or infer the successful step count before treating the allocation as fully verified
 
 - Status: Partially Tested
 - Source log: `Network_30208_20260818.log`
