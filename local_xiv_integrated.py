@@ -83,20 +83,16 @@ class App(tk.Tk):
   if not p:return
   self.work('ACTログ取込中...',lambda:(lambda r:f"ACT取込完了: {r['encounters']}戦闘 / {r['parsed']}イベント")(import_act(p,DB)))
  def healing_analysis(self):
-  def allocate_damage(self):
-    if not DB.exists():
-      return messagebox.showinfo(APP,'先にログを取り込んでください。')
-
-    self.work(
-   '火力配賦を計算中...',
-   lambda:(
-    lambda r:
-    f"火力配賦完了: {r['fights']}戦闘 / {r['allocated_damage']:.0f}配賦"
-   )(run_allocation(DB))
-  )
   if not DB.exists():return messagebox.showinfo(APP,'先にログを取り込んでください。')
   self.work('回復・軽減解析中...',lambda:(lambda r:f"回復・軽減解析完了: {r['fights']}戦闘 / 警告{r['warnings']}件")(run_healing(DB)))
+
+ def allocate_damage(self):
+  if not DB.exists():return messagebox.showinfo(APP,'先にログを取り込んでください。')
+  self.work('火力配賦を計算中...',lambda:(lambda r:f"火力配賦完了: {r['fights']}戦闘 / {r['allocated_damage']:.0f}配賦")(run_allocation(DB)))
+
  def boss_analysis(self):
+  if not DB.exists():return messagebox.showinfo(APP,'先にログを取り込んでください。')
+  self.work('全ジョブ・ボス解析中...',lambda:(lambda r:f"ボス解析完了: {r['fights']}戦闘 / {r['findings']}件")(run_boss_analysis(DB)))
   if not DB.exists():return messagebox.showinfo(APP,'先にログを取り込んでください。')
   self.work('全ジョブ・ボス解析中...',lambda:(lambda r:f"ボス解析完了: {r['fights']}戦闘 / {r['findings']}件")(run_boss_analysis(DB)))
  def job_analysis(self):
