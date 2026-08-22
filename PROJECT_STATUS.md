@@ -68,6 +68,7 @@
 ---
 
 ## Next Tasks
+- 正式なバフID・効果量・対象範囲を確認して配賦ルールを整備
 
 ### High Priority
 
@@ -105,3 +106,19 @@
 - 構文検査とテスト成功後にコミットする
 - Pull Request経由でmainへ統合する
 - 設計、実装、テスト、Blockedを区別して記録する
+### Real ACT Log Validation
+
+- Status: Partially Tested
+- Source log: `Network_30208_20260818.log`
+- Log files were read directly from the ACT folder and were not copied into the repository
+- Imported encounters: 54
+- Parsed events: 165,381
+- Damage events: 79,776
+- Example rules result: allocated damage `0.0`
+- Synthetic validation rule result:
+  - Allocation rows: 24,363
+  - Allocated damage: 75,947,424.0
+  - Warnings: 0
+- Engine output and database allocation totals matched
+- The synthetic buff ID and 10% effect were used only to verify the processing path
+- Official buff IDs, effect values, and allocation rules remain unverified
