@@ -226,3 +226,14 @@
 - Added separate source-buff and target-debuff window handling
 - Unit test: PASS
 
+---
+
+## GUI Button Layout
+
+- Status: Implemented / GUI Tested
+- Buttons were changed from one row to two rows
+- Button order: P0-7 ? P0-8 ? P0-9 ? P0-10
+- All buttons are visible within the application window
+- Japanese labels display correctly
+- Syntax check: PASS
+
