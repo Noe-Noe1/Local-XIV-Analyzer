@@ -16,6 +16,7 @@ from statistical_baseline_generator import generate as generate_baselines
 from job_analysis_engine import run as run_job_analysis
 from job_boss_analysis_engine import run as run_boss_analysis
 from healing_mitigation_engine import run as run_healing
+from damage_allocation_engine import run as run_allocation
 
 APP='Local XIV Analyzer 1.2.0'; HOME=Path.home()/'LocalXIVAnalyzer'; DB=HOME/'fflogs_clear.sqlite3'; CACHE=HOME/'fflogs_cache'; DATA=HOME/'fflogs_dataset'
 
@@ -40,7 +41,7 @@ class App(tk.Tk):
   self.title(APP);self.geometry('1180x760');self.minsize(900,600);self.build_ui();self.refresh()
  def build_ui(self):
   top=ttk.Frame(self,padding=12);top.pack(fill='x');ttk.Label(top,text=APP,font=('Yu Gothic UI',19,'bold')).pack(side='left')
-  ttk.Button(top,text='P0-1 Clearログ収集',command=self.collect_dialog).pack(side='right');ttk.Button(top,text='P0-2 比較セル生成',command=self.cells).pack(side='right',padx=8);ttk.Button(top,text='P0-3 有効時間正規化',command=self.normalize).pack(side='right',padx=8);ttk.Button(top,text='P0-4 適格性判定',command=self.filter_quality).pack(side='right',padx=8);ttk.Button(top,text='P0-5 ACT取込',command=self.import_act_log).pack(side='right',padx=8);ttk.Button(top,text='P0-6 統計基準',command=self.baselines).pack(side='right',padx=8);ttk.Button(top,text='P0-7 ジョブ解析',command=self.job_analysis).pack(side='right',padx=8);ttk.Button(top,text='P0-8 全ジョブ・ボス',command=self.boss_analysis).pack(side='right',padx=8);ttk.Button(top,text='P0-10 回復・軽減',command=self.healing_analysis).pack(side='right',padx=8);ttk.Button(top,text='更新',command=self.refresh).pack(side='right')
+  ttk.Button(top,text='P0-1 Clearログ収集',command=self.collect_dialog).pack(side='right');ttk.Button(top,text='P0-2 比較セル生成',command=self.cells).pack(side='right',padx=8);ttk.Button(top,text='P0-3 有効時間正規化',command=self.normalize).pack(side='right',padx=8);ttk.Button(top,text='P0-4 適格性判定',command=self.filter_quality).pack(side='right',padx=8);ttk.Button(top,text='P0-5 ACT取込',command=self.import_act_log).pack(side='right',padx=8);ttk.Button(top,text='P0-6 統計基準',command=self.baselines).pack(side='right',padx=8);ttk.Button(top,text='P0-7 ジョブ解析',command=self.job_analysis).pack(side='right',padx=8);ttk.Button(top,text='P0-9 火力配賦',command=self.allocate_damage).pack(side='right',padx=8);ttk.Button(top,text='P0-8 全ジョブ・ボス',command=self.boss_analysis).pack(side='right',padx=8);ttk.Button(top,text='P0-10 回復・軽減',command=self.healing_analysis).pack(side='right',padx=8);ttk.Button(top,text='更新',command=self.refresh).pack(side='right')
   self.status=tk.StringVar(value='待機中');ttk.Label(self,textvariable=self.status,padding=(12,0)).pack(fill='x');self.pb=ttk.Progressbar(self,mode='indeterminate');self.pb.pack(fill='x',padx=12,pady=8)
   self.tabs=ttk.Notebook(self);self.tabs.pack(fill='both',expand=True,padx=12,pady=6)
   f=ttk.Frame(self.tabs);self.tabs.add(f,text='収集済みClear')
@@ -82,6 +83,17 @@ class App(tk.Tk):
   if not p:return
   self.work('ACTログ取込中...',lambda:(lambda r:f"ACT取込完了: {r['encounters']}戦闘 / {r['parsed']}イベント")(import_act(p,DB)))
  def healing_analysis(self):
+  def allocate_damage(self):
+    if not DB.exists():
+      return messagebox.showinfo(APP,'先にログを取り込んでください。')
+
+    self.work(
+   '火力配賦を計算中...',
+   lambda:(
+    lambda r:
+    f"火力配賦完了: {r['fights']}戦闘 / {r['allocated_damage']:.0f}配賦"
+   )(run_allocation(DB))
+  )
   if not DB.exists():return messagebox.showinfo(APP,'先にログを取り込んでください。')
   self.work('回復・軽減解析中...',lambda:(lambda r:f"回復・軽減解析完了: {r['fights']}戦闘 / 警告{r['warnings']}件")(run_healing(DB)))
  def boss_analysis(self):
@@ -131,6 +143,10 @@ class App(tk.Tk):
     if 'healing_runs' in tables:
      row=db.execute('select run_id,fights,events,warnings from healing_runs order by run_id desc limit 1').fetchone()
      if row:stats['latest_healing']={'run':row[0],'fights':row[1],'events':row[2],'warnings':row[3]}
+    if 'allocation_runs' in tables:
+     row=db.execute('select run_id,fights,events,allocated_damage,warnings from allocation_runs order by run_id desc limit 1').fetchone()
+     if row:stats['latest_allocation']={'run':row[0],'fights':row[1],'events':row[2],'allocated':row[3],'warnings':row[4]}
+
     db.close()
    except Exception as e:stats['read_error']=str(e)
   self.info.delete('1.0','end');self.info.insert('end',json.dumps(stats,ensure_ascii=False,indent=2))
