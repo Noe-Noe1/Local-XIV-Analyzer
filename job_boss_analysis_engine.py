@@ -66,9 +66,14 @@ def analyze_fight(events,start,end,enc,rule,roster):
    dead=sum(1 for e in pe if str(e.get('targetID') or '')==actor and typ(e)=='death')
    summaries.append((actor,job,ROLES.get(job,'unknown'),p,len(actions),damage,taken,dead))
  return ps,out,summaries
-def run(db_path,rules_path=None):
+def run(db_path,rules_path=None,report_hash=None,fight_id=None):
  db=sqlite3.connect(db_path);db.executescript(SCHEMA);rules=load(rules_path);cur=db.execute('insert into boss_analysis_runs(rules_version,fights,findings) values(?,0,0)',(rules['version'],));rid=cur.lastrowid;nf=0;total=0
- for rh,fid,enc,start,end in db.execute('select report_hash,fight_id,encounter_id,start,end from fights').fetchall():
+ fights_sql='select report_hash,fight_id,encounter_id,start,end from fights'
+ params=()
+ if report_hash is not None and fight_id is not None:
+  fights_sql+=' where report_hash=? and fight_id=?'
+  params=(report_hash,fight_id)
+ for rh,fid,enc,start,end in db.execute(fights_sql,params).fetchall():
   ev=get_events(db,rh,fid);roster=db.execute('select actor_hash,job from fight_players where report_hash=? and fight_id=?',(rh,fid)).fetchall();rule=rules['encounters'].get(str(enc),{});ps,findings,sums=analyze_fight(ev,float(start),float(end),enc,rule,roster)
   for p,a,b,src,conf in ps:db.execute('insert or replace into phase_windows values(?,?,?,?,?,?,?)',(rh,fid,p,a,b,src,conf))
   for p,cat,sev,code,msg,t,evidence in findings:db.execute('insert into boss_analysis_results values(?,?,?,?,?,?,?,?,?,?,?)',(rid,rh,fid,enc,p,cat,sev,code,msg,t,evidence));total+=1

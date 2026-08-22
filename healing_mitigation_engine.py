@@ -45,9 +45,14 @@ def windows(events,rules,end):
    s,natural=opened.pop(key);out[target].append((sid,owner,s,min(t,natural)))
  for (target,sid,owner),(s,natural) in opened.items():out[target].append((sid,owner,s,natural))
  return out
-def run(db_path,rules_path=None,death_window_ms=10000):
+def run(db_path,rules_path=None,death_window_ms=10000,report_hash=None,fight_id=None):
  db=sqlite3.connect(db_path);db.executescript(SCHEMA);rules=load(rules_path);rid=db.execute('insert into healing_runs(rules_version,fights,events,warnings) values(?,0,0,0)',(rules['version'],)).lastrowid;nf=ne=nw=0
- for rh,fid,start,end in db.execute('select report_hash,fight_id,start,end from fights').fetchall():
+ fights_sql='select report_hash,fight_id,start,end from fights'
+ params=()
+ if report_hash is not None and fight_id is not None:
+  fights_sql+=' where report_hash=? and fight_id=?'
+  params=(report_hash,fight_id)
+ for rh,fid,start,end in db.execute(fights_sql,params).fetchall():
   ev=[]
   for seq,(p,) in enumerate(db.execute('select payload from events where report_hash=? and fight_id=? order by seq',(rh,fid))):
    try:e=json.loads(p);e['_seq']=seq;ev.append(e)
