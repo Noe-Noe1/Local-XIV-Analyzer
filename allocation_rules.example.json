@@ -1,14 +1,19 @@
 {
-  "version": "p0-9-allocation-rules-1",
+  "version": "p0-9-allocation-rules-2",
   "buffs": {
     "1822": {
       "name": "Technical Finish",
       "kind": "damage_percent",
-      "value": 0.05,
+      "value": 0.01,
       "targeting": "party",
-      "confidence": "medium",
-      "method": "official_job_guide",
-      "warning": "効果量はステップ成功数で1%～5%に変動するが、現行ACT取込では成功数を判別できないため4ステップ時の5%を使用"
+      "action_values": {
+        "33218": 0.05,
+        "16196": 0.05
+      },
+      "action_match_ms": 5,
+      "confidence": "high_when_action_matched",
+      "method": "matched_finish_action",
+      "warning": "実行アクションを判定できない場合は最低値1%を使用"
     }
   }
 }

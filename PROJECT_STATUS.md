@@ -143,3 +143,16 @@
 - Engine output and database allocation totals matched
 - The synthetic buff ID and 10% effect were used only to verify the processing path
 - Official buff IDs, effect values, and allocation rules remain unverified
+
+---
+
+## Technical Finish Step Detection
+
+- Status: Implemented / Real-log Tested
+- Quadruple action IDs: `33218` and `16196`
+- Matched allocation rows: 11,804
+- Fallback allocation rows: 439
+- Total allocated damage: 25,055,897.780
+- Fallback warnings: 439
+- Unit test: PASS
+- Unmatched actions use the provisional 1% value with medium confidence
