@@ -156,3 +156,30 @@
 - Fallback warnings: 439
 - Unit test: PASS
 - Unmatched actions use the provisional 1% value with medium confidence
+
+---
+
+## Battle Litany Validation
+
+- Status: Implemented / Real-log Tested
+- Status ID: `786`
+- Effect: Critical hit rate +10%
+- Targeting: Party
+- Method: Expected value estimate
+- Confidence: Low
+- Additional ACT log:
+  - Source size: 428,387,120 bytes
+  - Import time: 32.4 seconds
+  - Fights: 154
+  - Parsed events: 562,144
+  - Damage events: 283,879
+  - Battle Litany applications: 751
+- Allocation result:
+  - Battle Litany allocation rows: 15,039
+  - Battle Litany allocated damage: 24,943,389.538
+  - Total allocated damage: 51,968,139.609
+  - Total warnings: 21,206
+- Unit test: PASS
+- Critical-hit details are unavailable in the current ACT import format
+- Battle Litany contribution therefore remains an expected-value estimate
+

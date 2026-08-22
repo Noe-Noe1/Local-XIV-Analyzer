@@ -110,4 +110,74 @@ with tempfile.TemporaryDirectory() as directory:
 
     result = run(db_path, rules_path)
     assert round(result["allocated_damage"]) == 50
+
+with tempfile.TemporaryDirectory() as directory:
+    db_path = Path(directory) / "battle_litany.sqlite3"
+    rules_path = Path(directory) / "battle_litany_rules.json"
+
+    rules_path.write_text(json.dumps({
+        "version": "battle-litany-test",
+        "buffs": {
+            "786": {
+                "kind": "crit_rate",
+                "value": 0.10,
+                "bonus_multiplier": 0.40,
+                "targeting": "party"
+            }
+        },
+    }), encoding="utf-8")
+
+    db = sqlite3.connect(db_path)
+    db.executescript("""
+    create table fights(
+        report_hash text,
+        fight_id integer,
+        start real,
+        end real
+    );
+    create table events(
+        report_hash text,
+        fight_id integer,
+        seq integer,
+        payload text
+    );
+    """)
+
+    db.execute(
+        "insert into fights values(?,?,?,?)",
+        ("report", 1, 0, 10000)
+    )
+
+    events = [
+        {
+            "type": "applybuff",
+            "timestamp": 0,
+            "sourceID": "owner",
+            "targetID": "player",
+            "abilityGameID": 786,
+            "duration": 10000
+        },
+        {
+            "type": "damage",
+            "timestamp": 1000,
+            "sourceID": "player",
+            "targetID": "boss",
+            "amount": 1040
+        }
+    ]
+
+    for seq, event in enumerate(events):
+        db.execute(
+            "insert into events values(?,?,?,?)",
+            ("report", 1, seq, json.dumps(event))
+        )
+
+    db.commit()
+    db.close()
+
+    result = run(db_path, rules_path)
+    assert round(result["allocated_damage"]) == 40
+    assert result["warnings"] == 1
+
+
 print("PASS")
