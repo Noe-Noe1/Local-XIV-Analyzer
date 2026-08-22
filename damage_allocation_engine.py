@@ -65,40 +65,95 @@ def ability_id(event):
     return str(value or "unknown")
 
 
+def matched_action_value(events, seq, owner, time, rule):
+    action_values = rule.get("action_values") or {}
+    if not action_values:
+        return None
+
+    match_ms = float(rule.get("action_match_ms", 5))
+
+    for previous in reversed(events[:seq]):
+        if actor(previous, "sourceID") != owner:
+            continue
+        if event_type(previous) not in {"damage", "calculateddamage"}:
+            continue
+
+        delta = time - timestamp(previous)
+        if 0 <= delta <= match_ms:
+            value = action_values.get(ability_id(previous))
+            if value is not None:
+                return float(value)
+        break
+
+    return None
+
+
 def status_windows(events, rules, fight_end):
     opened = {}
     windows = defaultdict(list)
+
     for seq, event in enumerate(events):
         kind = event_type(event)
         buff_id = ability_id(event)
         target = actor(event, "targetID")
         owner = actor(event, "sourceID")
         time = timestamp(event)
+
         if buff_id not in rules["buffs"] or not target:
             continue
+
         key = (target, buff_id, owner)
+
         if kind in {"applybuff", "applydebuff", "refreshbuff", "refreshdebuff"}:
             if key in opened:
-                old_id, old_owner, start, natural_end, old_seq = opened.pop(key)
-                windows[target].append((old_id, old_owner, start, min(time, natural_end), old_seq))
+                old_id, old_owner, start, natural_end, old_seq, old_value = opened.pop(key)
+                windows[target].append(
+                    (old_id, old_owner, start, min(time, natural_end), old_seq, old_value)
+                )
+
+            rule = rules["buffs"][buff_id]
+            matched_value = matched_action_value(events, seq, owner, time, rule)
             duration = float(event.get("duration") or 0)
             natural_end = min(time + duration, fight_end) if duration else fight_end
-            opened[key] = (buff_id, owner, time, natural_end, seq)
+
+            opened[key] = (
+                buff_id,
+                owner,
+                time,
+                natural_end,
+                seq,
+                matched_value,
+            )
+
         elif kind in {"removebuff", "removedebuff"} and key in opened:
-            old_id, old_owner, start, natural_end, old_seq = opened.pop(key)
-            windows[target].append((old_id, old_owner, start, min(time, natural_end), old_seq))
+            old_id, old_owner, start, natural_end, old_seq, old_value = opened.pop(key)
+            windows[target].append(
+                (old_id, old_owner, start, min(time, natural_end), old_seq, old_value)
+            )
+
     for (target, _, _), item in opened.items():
         windows[target].append(item)
+
     return windows
 
 
 def allocate_percentage(observed, active, rules):
     buffs = []
-    for buff_id, owner, *_ in active:
+
+    for window in active:
+        buff_id, owner = window[:2]
+        matched_value = window[5] if len(window) > 5 else None
         rule = rules["buffs"][buff_id]
-        value = float(rule.get("value", 0))
+
+        value = (
+            float(matched_value)
+            if matched_value is not None
+            else float(rule.get("value", 0))
+        )
+
         if rule.get("kind") == "damage_percent" and value > 0:
             buffs.append((buff_id, owner, value, rule))
+
     if not buffs:
         return observed, []
 
@@ -106,20 +161,36 @@ def allocate_percentage(observed, active, rules):
     gain = observed - base
     count = len(buffs)
     allocations = []
+
     for index, (buff_id, owner, value, rule) in enumerate(buffs):
         contribution = 0.0
         others = [i for i in range(count) if i != index]
+
         for size in range(count):
             for subset in itertools.combinations(others, size):
                 before = base * math.prod(1 + buffs[i][2] for i in subset)
-                weight = math.factorial(size) * math.factorial(count - size - 1) / math.factorial(count)
+                weight = (
+                    math.factorial(size)
+                    * math.factorial(count - size - 1)
+                    / math.factorial(count)
+                )
                 contribution += weight * (before * (1 + value) - before)
-        allocations.append([buff_id, owner, contribution, rule, "exact_percentage", "high"])
+
+        allocations.append([
+            buff_id,
+            owner,
+            contribution,
+            rule,
+            "action_matched_percentage" if matched_value is not None else "exact_percentage",
+            "high" if matched_value is not None else "medium",
+        ])
 
     allocated = sum(item[2] for item in allocations)
     scale = gain / allocated if allocated else 1.0
+
     for item in allocations:
         item[2] *= scale
+
     return base, allocations
 
 
@@ -191,6 +262,14 @@ def run(db_path, rules_path=None):
             allocations += estimate_crit_dh(observed, event, active, rules)
             if any(item[4] == "expected_value_estimate" for item in allocations):
                 warnings[source].add("crit_dh_allocation_estimated")
+                warning_count += 1
+
+            if any(
+                item[4] == "exact_percentage"
+                and item[3].get("action_values")
+                for item in allocations
+            ):
+                warnings[source].add("action_value_fallback_used")
                 warning_count += 1
 
             for buff_id, owner, amount, rule, method, confidence in allocations:
