@@ -269,7 +269,23 @@ def run(db_path, rules_path=None):
             event_count += 1
             raw[source] += observed
             time = timestamp(event)
-            active = [window for window in windows.get(source, []) if window[2] <= time < window[3]]
+            target = actor(event, "targetID")
+
+            source_active = [
+                window
+                for window in windows.get(source, [])
+                if window[2] <= time < window[3]
+                and rules["buffs"][window[0]].get("targeting") != "enemy"
+            ]
+
+            target_active = [
+                window
+                for window in windows.get(target, [])
+                if window[2] <= time < window[3]
+                and rules["buffs"][window[0]].get("targeting") == "enemy"
+            ]
+
+            active = source_active + target_active
             base, allocations = allocate_percentage(observed, active, rules)
             allocations += estimate_crit_dh(observed, event, active, rules)
             if any(item[4] == "expected_value_estimate" for item in allocations):
