@@ -203,10 +203,22 @@ def estimate_crit_dh(observed, event, active, rules):
         kind = rule.get("kind")
         if kind not in {"crit_rate", "direct_rate"}:
             continue
-        if kind == "crit_rate" and not critical:
-            continue
-        if kind == "direct_rate" and not direct:
-            continue
+        has_hit_detail = any(
+            key in event
+            for key in (
+                "critical",
+                "isCritical",
+                "directHit",
+                "isDirectHit",
+                "hitType",
+            )
+        )
+
+        if has_hit_detail:
+            if kind == "crit_rate" and not critical:
+                continue
+            if kind == "direct_rate" and not direct:
+                continue
         rate = float(rule.get("value", 0))
         bonus = float(rule.get("bonus_multiplier", 0.4 if kind == "crit_rate" else 0.25))
         estimate = observed * (rate * bonus) / (1 + rate * bonus)
