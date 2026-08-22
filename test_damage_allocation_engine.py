@@ -180,4 +180,72 @@ with tempfile.TemporaryDirectory() as directory:
     assert result["warnings"] == 1
 
 
+
+with tempfile.TemporaryDirectory() as directory:
+    db_path = Path(directory) / "target_debuff.sqlite3"
+    rules_path = Path(directory) / "target_debuff_rules.json"
+
+    rules_path.write_text(json.dumps({
+        "version": "target-debuff-test",
+        "buffs": {
+            "3849": {
+                "kind": "damage_percent",
+                "value": 0.05,
+                "targeting": "enemy"
+            }
+        },
+    }), encoding="utf-8")
+
+    db = sqlite3.connect(db_path)
+    db.executescript("""
+    create table fights(
+        report_hash text,
+        fight_id integer,
+        start real,
+        end real
+    );
+    create table events(
+        report_hash text,
+        fight_id integer,
+        seq integer,
+        payload text
+    );
+    """)
+
+    db.execute(
+        "insert into fights values(?,?,?,?)",
+        ("report", 1, 0, 10000)
+    )
+
+    events = [
+        {
+            "type": "applybuff",
+            "timestamp": 0,
+            "sourceID": "owner",
+            "targetID": "boss",
+            "abilityGameID": 3849,
+            "duration": 10000
+        },
+        {
+            "type": "damage",
+            "timestamp": 1000,
+            "sourceID": "player",
+            "targetID": "boss",
+            "amount": 1050
+        }
+    ]
+
+    for seq, event in enumerate(events):
+        db.execute(
+            "insert into events values(?,?,?,?)",
+            ("report", 1, seq, json.dumps(event))
+        )
+
+    db.commit()
+    db.close()
+
+    result = run(db_path, rules_path)
+    assert round(result["allocated_damage"]) == 50
+
+
 print("PASS")

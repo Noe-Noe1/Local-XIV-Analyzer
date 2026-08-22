@@ -1,5 +1,5 @@
 {
-  "version": "p0-9-allocation-rules-4",
+  "version": "p0-9-allocation-rules-5",
   "buffs": {
     "1822": {
       "name": "Technical Finish",
@@ -46,6 +46,14 @@
       "kind": "damage_percent",
       "value": 0.05,
       "targeting": "party",
+      "confidence": "high",
+      "method": "documented_percentage"
+    },
+    "3849": {
+      "name": "Dokumori",
+      "kind": "damage_percent",
+      "value": 0.05,
+      "targeting": "enemy",
       "confidence": "high",
       "method": "documented_percentage"
     }

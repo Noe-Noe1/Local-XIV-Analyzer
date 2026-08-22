@@ -207,3 +207,22 @@
 - Fixed rule confidence handling
 - Unit test: PASS
 
+---
+
+## Enemy Target Debuff Validation
+
+- Status: Implemented / Real-log Tested
+- Dokumori status ID: `3849`
+- Effect: Target damage taken +5%
+- Targeting: Enemy
+- Confidence: High
+- Validation result:
+  - Fights: 154
+  - Damage events: 283,879
+  - Allocation rows: 14,088
+  - Allocated damage: 37,869,194.803
+  - Total allocated damage: 166,192,129.961
+  - Warnings: 18,447
+- Added separate source-buff and target-debuff window handling
+- Unit test: PASS
+
