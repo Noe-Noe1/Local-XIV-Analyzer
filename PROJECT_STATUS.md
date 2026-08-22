@@ -183,3 +183,27 @@
 - Critical-hit details are unavailable in the current ACT import format
 - Battle Litany contribution therefore remains an expected-value estimate
 
+---
+
+## Party Damage Buff Rules Validation
+
+- Status: Implemented / Real-log Tested
+- Validation log:
+  - Fights: 154
+  - Damage events: 283,879
+- Added rules:
+  - Divination (`1878`): damage +6%
+  - Starry Muse (`3685`): damage +5%
+  - Brotherhood (`1185`): damage +5%
+- Allocation results:
+  - Divination: 41,769,159.513
+  - Starry Muse: 32,661,541.046
+  - Brotherhood: 4,352,869.977
+  - Battle Litany: 24,943,389.538
+  - Technical Finish: 25,771,618.003
+  - Total: 129,498,578.077
+- Warnings: 18,447
+- Fixed method and confidence leakage between overlapping buffs
+- Fixed rule confidence handling
+- Unit test: PASS
+

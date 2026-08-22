@@ -152,7 +152,7 @@ def allocate_percentage(observed, active, rules):
         )
 
         if rule.get("kind") == "damage_percent" and value > 0:
-            buffs.append((buff_id, owner, value, rule))
+            buffs.append((buff_id, owner, value, rule, matched_value is not None))
 
     if not buffs:
         return observed, []
@@ -162,7 +162,7 @@ def allocate_percentage(observed, active, rules):
     count = len(buffs)
     allocations = []
 
-    for index, (buff_id, owner, value, rule) in enumerate(buffs):
+    for index, (buff_id, owner, value, rule, action_matched) in enumerate(buffs):
         contribution = 0.0
         others = [i for i in range(count) if i != index]
 
@@ -181,8 +181,8 @@ def allocate_percentage(observed, active, rules):
             owner,
             contribution,
             rule,
-            "action_matched_percentage" if matched_value is not None else "exact_percentage",
-            "high" if matched_value is not None else "medium",
+            "action_matched_percentage" if action_matched else "exact_percentage",
+            "high" if action_matched else rule.get("confidence", "medium"),
         ])
 
     allocated = sum(item[2] for item in allocations)
