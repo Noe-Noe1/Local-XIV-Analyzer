@@ -226,7 +226,7 @@ def estimate_crit_dh(observed, event, active, rules):
     return result
 
 
-def run(db_path, rules_path=None):
+def run(db_path, rules_path=None, report_hash=None, fight_id=None):
     db = sqlite3.connect(db_path)
     db.executescript(SCHEMA)
     rules = load_rules(rules_path)
@@ -237,7 +237,12 @@ def run(db_path, rules_path=None):
 
     fight_count = event_count = warning_count = 0
     allocated_total = 0.0
-    fights = db.execute("select report_hash,fight_id,start,end from fights").fetchall()
+    fights_sql = "select report_hash,fight_id,start,end from fights"
+    params = ()
+    if report_hash is not None and fight_id is not None:
+        fights_sql += " where report_hash=? and fight_id=?"
+        params = (report_hash, fight_id)
+    fights = db.execute(fights_sql, params).fetchall()
     for report_hash, fight_id, start, end in fights:
         events = []
         rows = db.execute(

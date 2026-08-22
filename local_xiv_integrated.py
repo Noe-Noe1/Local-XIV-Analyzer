@@ -41,6 +41,10 @@ class App(tk.Tk):
   self.title(APP);self.geometry('1180x760');self.minsize(900,600);self.build_ui();self.refresh()
  def build_ui(self):
   top=ttk.Frame(self,padding=12);top.pack(fill='x');ttk.Label(top,text=APP,font=('Yu Gothic UI',19,'bold')).pack(side='left')
+  workflow=ttk.Frame(self,padding=(12,0,12,10));workflow.pack(fill='x')
+  ttk.Button(workflow,text='ACTログを開く',command=self.import_act_log).pack(side='left',padx=(0,8))
+  ttk.Button(workflow,text='選択戦闘を解析',command=self.analyze_selected_fight).pack(side='left')
+  ttk.Label(workflow,text='ACTログ取込 → 戦闘選択 → 解析').pack(side='left',padx=16)
   controls=ttk.Frame(self,padding=(12,0,12,8));controls.pack(fill='x')
   row1=ttk.Frame(controls);row1.pack(fill='x',pady=(0,6))
   row2=ttk.Frame(controls);row2.pack(fill='x')
@@ -58,8 +62,15 @@ class App(tk.Tk):
   self.status=tk.StringVar(value='待機中');ttk.Label(self,textvariable=self.status,padding=(12,0)).pack(fill='x');self.pb=ttk.Progressbar(self,mode='indeterminate');self.pb.pack(fill='x',padx=12,pady=8)
   self.tabs=ttk.Notebook(self);self.tabs.pack(fill='both',expand=True,padx=12,pady=6)
   f=ttk.Frame(self.tabs);self.tabs.add(f,text='収集済みClear')
-  cols=('report','fight','encounter','name','duration','difficulty');self.fights=ttk.Treeview(f,columns=cols,show='headings')
-  for c,h,w in zip(cols,['Report hash','Fight','Encounter','ボス','時間(秒)','難易度'],[180,70,100,300,100,90]):self.fights.heading(c,text=h);self.fights.column(c,width=w)
+  cols=('started','pull','enemy','progress','phase','duration','result','report','fight')
+  self.fights=ttk.Treeview(f,columns=cols,show='tree headings',selectmode='browse')
+  self.fights.heading('#0',text='\u30b3\u30f3\u30c6\u30f3\u30c4')
+  self.fights.column('#0',width=250,stretch=True)
+  headings=['\u958b\u59cb\u65e5\u6642','Pull','\u4e3b\u306a\u6575','\u5230\u9054HP','\u5230\u9054\u30d5\u30a7\u30fc\u30ba','\u6226\u95d8\u6642\u9593','\u7d50\u679c','Report','Fight']
+  widths=[165,55,190,80,125,85,80,0,0]
+  for c,h,w in zip(cols,headings,widths):
+   self.fights.heading(c,text=h)
+   self.fights.column(c,width=w,stretch=(w>0))
   self.fights.pack(fill='both',expand=True)
   c=ttk.Frame(self.tabs);self.tabs.add(c,text='比較セル')
   cols=('key','job','samples','confidence','active','apm','dpm');self.cells_tree=ttk.Treeview(c,columns=cols,show='headings')
@@ -91,6 +102,43 @@ class App(tk.Tk):
      if v is None:os.environ.pop(k,None)
      else:os.environ[k]=v
   self.work('公開Clearログを収集中...',task)
+ def selected_fight(self):
+  selected=self.fights.selection()
+  if not selected:
+   messagebox.showinfo(APP,'????????????????????')
+   return None
+  values=self.fights.item(selected[0],'values')
+  if len(values)<9:
+   messagebox.showerror(APP,'?????????????????')
+   return None
+  return str(values[7]),int(values[8])
+
+ def analyze_selected_fight(self):
+  selected=self.selected_fight()
+  if not selected:return
+  report_hash,fight_id=selected
+  rules_path=Path(__file__).with_name('allocation_rules.example.json')
+  def task():
+   boss=run_boss_analysis(
+    DB,report_hash=report_hash,fight_id=fight_id
+   )
+   allocation=run_allocation(
+    DB,
+    str(rules_path) if rules_path.exists() else None,
+    report_hash=report_hash,
+    fight_id=fight_id
+   )
+   healing=run_healing(
+    DB,report_hash=report_hash,fight_id=fight_id
+   )
+   return (
+    f'\u6226\u95d8 {fight_id} \u89e3\u6790\u5b8c\u4e86: '
+    f'\u30dc\u30b9\u6240\u898b {boss["findings"]}\u4ef6 / '
+    f'\u706b\u529b\u914d\u8ce6 {allocation["allocated_damage"]:.0f} / '
+    f'\u56de\u5fa9\u30fb\u8efd\u6e1b\u8b66\u544a {healing["warnings"]}\u4ef6'
+   )
+  self.work('\u9078\u629e\u6226\u95d8\u3092\u89e3\u6790\u4e2d...',task)
+
  def import_act_log(self):
   p=filedialog.askopenfilename(filetypes=[('ACT network logs','*.log *.txt'),('All files','*.*')])
   if not p:return
@@ -131,7 +179,109 @@ class App(tk.Tk):
    try:
     db=sqlite3.connect(DB);tables={r[0] for r in db.execute("select name from sqlite_master where type='table'")}
     if 'fights' in tables:
-     for r in db.execute('select report_hash,fight_id,encounter_id,name,(end-start)/1000.0,difficulty from fights order by rowid desc limit 500'):self.fights.insert('','end',values=r)
+     latest_act=db.execute(
+      "select report_hash from import_audit "
+      "where source_type='ACT_NETWORK_LOG' "
+      "order by rowid desc limit 1"
+     ).fetchone()
+     fight_rows=db.execute(
+      'select report_hash,fight_id,encounter_id,name,start,end from fights '
+      'where report_hash=? order by encounter_id,fight_id',
+      (latest_act[0],)
+     ).fetchall() if latest_act else []
+     groups={}
+     group_counts={}
+     for row in fight_rows:
+      group_counts[row[3]]=group_counts.get(row[3],0)+1
+     for content,count in group_counts.items():
+      groups[content]=self.fights.insert(
+       '', 'end',
+       text=f'{content} ({count})',
+       open=True,
+       values=('', '', '', '', '', '', '', '', '')
+      )
+     for rh,fid,encounter_id,content,start,end in fight_rows:
+      enemy_stats={}
+      first_time=None
+      deaths=set()
+      phase_markers=[]
+      for payload, in db.execute(
+       'select payload from events where report_hash=? and fight_id=? order by seq',
+       (rh,fid)
+      ):
+       try:event=json.loads(payload)
+       except Exception:continue
+       if first_time is None and event.get('occurredAt'):first_time=event['occurredAt']
+       if event.get('type')=='death':deaths.add(str(event.get('targetID') or ''))
+       if (
+        event.get('type')=='actorcontrol'
+        and event.get('category')=='80000027'
+       ):
+        phase_markers.append(event.get('params') or [])
+       name=event.get('targetName')
+       target_id=str(event.get('targetID') or '')
+       maximum=float(event.get('targetMaxHP') or 0)
+       current=float(event.get('targetCurrentHP') or 0)
+       if not name or maximum<=0:continue
+       item=enemy_stats.setdefault(target_id,{'name':name,'max_hp':maximum,'min_ratio':1.0,'hits':0})
+       item['max_hp']=max(item['max_hp'],maximum)
+       item['min_ratio']=min(item['min_ratio'],max(0,current/maximum))
+       item['hits']+=1
+      by_name={}
+      for target_id,item in enemy_stats.items():
+       current=by_name.get(item['name'])
+       if current is None or item['hits']>current['hits']:
+        by_name[item['name']]=dict(item,target_id=target_id)
+      phase='-'
+      primary=None
+      if encounter_id==0x4D6:
+       stages={
+        str(marker[0]).upper()
+        for marker in phase_markers
+        if marker
+       }
+
+       if stages & {'1C','1D','05','06','07','08'}:
+        phase='P4'
+       elif stages & {'1A','1B','0C','0D','0B'}:
+        phase='P3'
+       else:
+        phase='P2'
+
+       phase_enemy={
+        'P2':'\u30b7\u30f4\u30a1\u30fb\u30df\u30c8\u30ed\u30f3',
+        'P3':'\u95c7\u306e\u5deb\u5973',
+       }.get(phase)
+
+       if phase_enemy and phase_enemy in by_name:
+        primary=by_name[phase_enemy]
+       elif (
+        '\u30d5\u30a7\u30a4\u30c8\u30d6\u30ec\u30a4\u30ab\u30fc'
+        in by_name
+       ):
+        primary=by_name[
+         '\u30d5\u30a7\u30a4\u30c8\u30d6\u30ec\u30a4\u30ab\u30fc'
+        ]
+      if primary is None and enemy_stats:
+       primary=max(enemy_stats.values(),key=lambda x:(x['hits'],x['max_hp']))
+      enemy_name=primary['name'] if primary else '\u4e0d\u660e'
+      progress=f'{primary["min_ratio"]:.0%}' if primary else '-'
+      if encounter_id==0x4D6:
+       result='\u8a0e\u4f10' if phase=='P5' else '\u5168\u6ec5'
+      else:
+       result=(
+        '\u8a0e\u4f10'
+        if primary and primary.get('target_id') in deaths
+        else '\u672a\u8a0e\u4f10'
+       )
+      started=first_time[:19].replace('T',' ') if first_time else '-'
+      total_seconds=int(max(float(end)-float(start),0)/1000)
+      duration=f'{total_seconds//60:02d}:{total_seconds%60:02d}'
+      self.fights.insert(
+       groups[content], 'end',
+       text='',
+       values=(started,fid,enemy_name,progress,phase,duration,result,rh,fid)
+      )
      stats['clear_fights']=db.execute('select count(*) from fights').fetchone()[0]
     if 'comparison_cells' in tables:
      for r in db.execute('select cell_key,job,sample_count,confidence,median_active_ratio,median_actions_per_min,median_damage_per_min from comparison_cells order by sample_count desc limit 1000'):self.cells_tree.insert('','end',values=(r[0],r[1],r[2],r[3],f'{r[4]:.1%}',f'{r[5]:.2f}',f'{r[6]:.0f}'))

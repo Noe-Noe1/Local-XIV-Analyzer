@@ -237,3 +237,31 @@
 - Japanese labels display correctly
 - Syntax check: PASS
 
+---
+
+## Analyze-style Local Workflow
+
+- Status: Implemented / GUI Tested
+- Main workflow:
+  - Open ACT log
+  - Select a fight
+  - Analyze selected fight
+- Fight boundaries use OverlayPlugin InCombat (`260`) transitions
+- A 20-second preparation window is retained before combat
+- Falls back to the previous gap-based method when InCombat records are absent
+- Latest validation log:
+  - 18 fights
+  - Futures Rewritten (Ultimate): 13
+  - The Goblet: 2
+  - the Wanderer's Palace: 3
+- Fight list includes:
+  - Content grouping
+  - Start time
+  - Pull number
+  - Main enemy
+  - Reached phase
+  - Duration in mm:ss
+  - Result
+- Selected-fight analysis runs boss, damage allocation, and healing/mitigation analysis
+- GUI and syntax checks: PASS
+
