@@ -354,3 +354,20 @@
 - Python compile: PASS
 - `git diff --check`: PASS
 - PyInstaller hidden import: updated
+
+---
+
+## P1-2 ActionEffect Foundation
+
+- Status: Implemented / Tested
+- Branch: `feature/p1-action-effect-foundation`
+- Explicit Critical, Direct Hit, and absorbed fields are normalized
+- Unsupported raw effects are preserved without speculative decoding
+- Unknown effects are stored in `unknown_action_effects`
+- Unknown-effect records contain anonymized event metadata
+- PyInstaller hidden import: updated
+- Tests: 14 PASS
+- Python compile: PASS
+- Database persistence test: PASS
+- `git diff --check`: PASS
+- Remaining: validated raw ActionEffect decoding rules and Shield State Management

@@ -2,6 +2,7 @@ from __future__ import annotations
 import hashlib,json,re,sqlite3
 from datetime import datetime
 from pathlib import Path
+from action_effect_decoder import decode_event, unknown_record, serialize_unknown
 JOB_IDS={19:'PLD',20:'MNK',21:'WAR',22:'DRG',23:'BRD',24:'WHM',25:'BLM',27:'SMN',28:'SCH',30:'NIN',31:'MCH',32:'DRK',33:'AST',34:'SAM',35:'RDM',37:'GNB',38:'DNC',39:'RPR',40:'SGE',41:'VPR',42:'PCT'}
 def ts(s):
  try:return datetime.fromisoformat(s).timestamp()*1000
@@ -21,7 +22,7 @@ def amount(words):
      if 0<v<20000000:vals.append(v)
  return min(vals,key=lambda x:abs(x-100000)) if vals else 0
 def init(db):
- c=sqlite3.connect(db);c.executescript('''pragma journal_mode=WAL;create table if not exists reports(report_hash text primary key,zone_id integer,zone_name text,collected_at text);create table if not exists fights(report_hash text,fight_id integer,encounter_id integer,name text,start real,end real,difficulty integer,primary key(report_hash,fight_id));create table if not exists events(report_hash text,fight_id integer,seq integer,payload text,primary key(report_hash,fight_id,seq));create table if not exists fight_players(report_hash text,fight_id integer,actor_hash text,job text,primary key(report_hash,fight_id,actor_hash));create table if not exists import_audit(report_hash text primary key,source_type text,source_hash text,line_count integer,parsed_count integer,line_types text);create table if not exists fight_boundaries(report_hash text,fight_id integer,prep_start real,combat_start real,combat_end real,boundary_source text,primary key(report_hash,fight_id));''');return c
+ c=sqlite3.connect(db);c.executescript('''pragma journal_mode=WAL;create table if not exists reports(report_hash text primary key,zone_id integer,zone_name text,collected_at text);create table if not exists fights(report_hash text,fight_id integer,encounter_id integer,name text,start real,end real,difficulty integer,primary key(report_hash,fight_id));create table if not exists events(report_hash text,fight_id integer,seq integer,payload text,primary key(report_hash,fight_id,seq));create table if not exists fight_players(report_hash text,fight_id integer,actor_hash text,job text,primary key(report_hash,fight_id,actor_hash));create table if not exists import_audit(report_hash text primary key,source_type text,source_hash text,line_count integer,parsed_count integer,line_types text);create table if not exists fight_boundaries(report_hash text,fight_id integer,prep_start real,combat_start real,combat_end real,boundary_source text,primary key(report_hash,fight_id));create table if not exists unknown_action_effects(report_hash text,fight_id integer,event_seq integer,event_type text,ability_id text,reason text,raw_effects_json text,primary key(report_hash,fight_id,event_seq));''');return c
 def parse(line,salt,base,seq):
  p=line.rstrip().split('|');typ=p[0] if p else ''
  if len(p)<2:return None,[]
@@ -166,7 +167,13 @@ def import_log(path,db_path,salt='LocalXIVAnalyzer-ACT-v1',gap_ms=30000):
    (rh,fid,prep_start,combat_start,combat_end,boundary_source)
   )
   used=set()
-  for i,e in enumerate(g):db.execute('insert or replace into events values(?,?,?,?)',(rh,fid,i,json.dumps(e,separators=(',',':'))));used.add(e.get('sourceID',''))
+  for i,e in enumerate(g):
+   db.execute('insert or replace into events values(?,?,?,?)',(rh,fid,i,json.dumps(e,separators=(',',':'))))
+   decoded=decode_event(e)
+   unknown=unknown_record(e,decoded)
+   if unknown and e.get('rawEffects') is not None:
+    db.execute('insert or replace into unknown_action_effects values(?,?,?,?,?,?,?)',(rh,fid,i,unknown['event_type'],unknown['ability_id'],unknown['reason'],serialize_unknown(unknown)))
+   used.add(e.get('sourceID',''))
   for actor in used:
    if actor:db.execute('insert or replace into fight_players values(?,?,?,?)',(rh,fid,actor,roster.get(actor,'UNKNOWN')))
  db.execute('insert or replace into import_audit values(?,?,?,?,?,?)',(rh,'ACT_NETWORK_LOG',sh,len(lines),len(events),json.dumps(types)));db.commit();db.close();return {'encounters':len(groups),'parsed':len(events)}
