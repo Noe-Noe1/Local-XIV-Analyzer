@@ -72,3 +72,25 @@ ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
 2. P1-1 Registry基盤を優先候補として詳細化する
 3. 解析表示と改善提案を段階的に拡張する
 4. 解析品質、速度、個人データ保護を検証する
+
+---
+
+## P1-1 Registry Foundation
+
+- Status: Implemented / Tested
+- Branch: `feature/p1-registry-foundation`
+- Common versioned rule loader: `rule_registry.py`
+- Supported registries: buff, mitigation, job, encounter, alias
+- Existing four JSON formats: compatible
+- Four existing engines use the common registry loader
+- Default rule behavior: preserved
+- Registry and integration tests: 9 PASS
+- Existing direct tests: 3 PASS
+- Python compile: PASS
+- `git diff --check`: PASS
+- PyInstaller hidden import: updated
+
+## Current Development Task
+
+- P1-1 Registry foundation implementation completed and validated
+- Next: review approved diffs and integrate through PR

@@ -3,3 +3,4 @@ PERF-001,選択戦闘の比較セル生成高速化,Tested,High,解析品質を�
 DOC-001,進捗・引継ぎ・履歴・目標の同期,Tested,High,PROJECT_STATUS・TASKS・ROADMAP・引継ぎ資料が整合,PROJECT_STATUS・TASKS・ROADMAP・引継ぎ資料の同期PASS
 REPO-001,未追跡ログ・DB・バックアップの整理,Tested,High,個人データをGit対象外にし必要なソースだけ残す,.gitignoreを作成し、ログ・DB・キャッシュ・バックアップをGit除外
 HANDOFF-001,最新状態とチャット運用方針の同期,Tested,High,4資料がmainの最新状態と整合,PR #13 merged; main 0d4b39f
+REGISTRY-001,P1-1 Registry common foundation,Tested,High,Common loader supports existing versioned rule files,9 registry tests PASS; 3 existing tests PASS; compile PASS

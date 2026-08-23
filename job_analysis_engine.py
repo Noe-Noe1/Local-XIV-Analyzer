@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse,json,math,sqlite3
 from collections import Counter,defaultdict
 from pathlib import Path
+from rule_registry import load_registry
 
 SCHEMA='''
 create table if not exists job_analysis_runs(
@@ -26,9 +27,7 @@ DEFAULT_RULES={
 
 def load_rules(path=None):
  if not path:return DEFAULT_RULES
- raw=json.loads(Path(path).read_text(encoding='utf-8'))
- if not isinstance(raw.get('jobs'),dict) or not raw.get('version'):raise ValueError('Invalid job rules')
- return raw
+ return load_registry("job",path).as_dict()
 
 def ability_id(e):
  a=e.get('abilityGameID')

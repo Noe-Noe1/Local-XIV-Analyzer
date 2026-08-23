@@ -32,6 +32,8 @@
 
 ## P1-1 Registry
 
+Foundation Status: Implemented / Tested
+
 - Buff Registry
 - Mitigation Registry
 - Job Registry

@@ -7,15 +7,14 @@ from __future__ import annotations
 import argparse,json,sqlite3,statistics
 from collections import Counter,defaultdict
 from pathlib import Path
+from rule_registry import load_registry
 JOBS=['PLD','WAR','DRK','GNB','WHM','SCH','AST','SGE','MNK','DRG','NIN','SAM','RPR','VPR','BRD','MCH','DNC','BLM','SMN','RDM','PCT','BLU']
 ROLES={j:('tank' if j in {'PLD','WAR','DRK','GNB'} else 'healer' if j in {'WHM','SCH','AST','SGE'} else 'melee' if j in {'MNK','DRG','NIN','SAM','RPR','VPR'} else 'physical_ranged' if j in {'BRD','MCH','DNC'} else 'caster') for j in JOBS}
 SCHEMA='''create table if not exists boss_analysis_runs(run_id integer primary key autoincrement,created_at text default current_timestamp,rules_version text,fights integer,findings integer);create table if not exists boss_analysis_results(run_id integer,report_hash text,fight_id integer,encounter_id integer,phase integer,category text,severity text,code text,message text,timestamp real,evidence_json text);create table if not exists phase_windows(report_hash text,fight_id integer,phase integer,start_ms real,end_ms real,source text,confidence text,primary key(report_hash,fight_id,phase));create table if not exists job_boss_summary(run_id integer,report_hash text,fight_id integer,actor_hash text,job text,role text,phase integer,actions integer,damage real,damage_taken real,deaths integer,primary key(run_id,report_hash,fight_id,actor_hash,phase));'''
 DEFAULT={'version':'p0-8.generic.1','encounters':{}}
 def load(path):
  if not path:return DEFAULT
- x=json.loads(Path(path).read_text(encoding='utf-8'))
- if not x.get('version') or not isinstance(x.get('encounters'),dict):raise ValueError('Invalid boss rules')
- return x
+ return load_registry("encounter",path).as_dict()
 def typ(e):return str(e.get('type','')).lower()
 def aid(e):
  a=e.get('abilityGameID');return str(a if a is not None else ((e.get('ability') or {}).get('guid') if isinstance(e.get('ability'),dict) else 'unknown'))
