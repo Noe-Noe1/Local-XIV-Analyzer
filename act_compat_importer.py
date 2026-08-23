@@ -35,9 +35,9 @@ def parse(line,salt,base,seq):
    'zoneName':p[3]
   }
  elif typ=='03' and len(p)>5:actors=[(a(p[2]),JOB_IDS.get(hx(p[4]),'UNKNOWN'))];e={'type':'combatantinfo','timestamp':t,'sourceID':a(p[2]),'job':actors[0][1]}
- elif typ=='20' and len(p)>8:e={'type':'begincast','timestamp':t,'sourceID':a(p[2]),'abilityGameID':hx(p[4]),'targetID':a(p[6]),'duration':float(p[8] or 0)*1000}
+ elif typ=='20' and len(p)>8:e={'type':'begincast','timestamp':t,'sourceID':a(p[2]),'abilityGameID':hx(p[4]),'abilityName':p[5],'targetID':a(p[6]),'duration':float(p[8] or 0)*1000}
  elif typ in ('21','22') and len(p)>8:
-  e={'type':'damage','timestamp':t,'sourceID':a(p[2]),'abilityGameID':hx(p[4]),'targetID':a(p[6]),'amount':amount(p[8:-1]),'rawEffects':p[8:-1],'occurredAt':p[1]}
+  e={'type':'damage','timestamp':t,'sourceID':a(p[2]),'abilityGameID':hx(p[4]),'abilityName':p[5],'targetID':a(p[6]),'amount':amount(p[8:-1]),'rawEffects':p[8:-1],'occurredAt':p[1]}
   if p[6].startswith('4'):
    e['targetName']=p[7]
    if len(p)>35:

@@ -55,9 +55,9 @@ def action_map(db,version,cell):
 def finding(cat,sev,code,msg,actual=None,lo=None,med=None,hi=None,conf='rule',evidence=None):
  return {'category':cat,'severity':sev,'code':code,'message':msg,'actual':actual,'low':lo,'median':med,'high':hi,'confidence':conf,'evidence':evidence or {}}
 
-def analyse_player(db,row,version,rules):
+def analyse_player(db,baseline_db,row,version,rules):
  rh,fid,actor,job,part,patch,enc,diff,phase,duration,active,action_count,damage,bucket=row
- cell='|'.join(map(str,(part,patch,enc,diff,phase,job,bucket)));bs=baseline_map(db,version,cell);ab=action_map(db,version,cell);ev=actions_for(db,rh,fid,actor);rule=rules['jobs'].get(job,{})
+ cell='|'.join(map(str,(part,patch,enc,diff,phase,job,bucket)));bs=baseline_map(baseline_db,version,cell);ab=action_map(baseline_db,version,cell);ev=actions_for(db,rh,fid,actor);rule=rules['jobs'].get(job,{})
  out=[];apm=action_count*60000/max(duration,1);dpm=damage*60000/max(duration,1)
  for metric,val in [('active_ratio',active),('actions_per_min',apm),('damage_per_min',dpm)]:
   b=bs.get(metric)
@@ -84,17 +84,33 @@ def analyse_player(db,row,version,rules):
  if gaps:out.append(finding('uptime','minor','long_action_gap','ジョブ規則の閾値を超える行動間隔があります。',max(gaps),None,gap,None,'rule',{'gaps_ms':gaps[:20]}))
  return cell,out
 
-def run(db_path,rules_path=None,baseline_version=None):
- db=sqlite3.connect(db_path);db.executescript(SCHEMA);rules=load_rules(rules_path);version=baseline_version or latest_version(db)
- if not version:raise RuntimeError('P0-6 baseline is required.')
- hasq='eligibility_results' in {r[0] for r in db.execute("select name from sqlite_master where type='table'")};join=' join eligibility_results e using(report_hash,fight_id,actor_hash)' if hasq else '';where=' where e.hard_eligible=1' if hasq else ''
+def run(db_path,rules_path=None,baseline_version=None,report_hash=None,fight_id=None,baseline_db_path=None):
+ db=sqlite3.connect(db_path);db.executescript(SCHEMA);rules=load_rules(rules_path)
+ baseline_db=sqlite3.connect(baseline_db_path) if baseline_db_path else db
+ version=baseline_version or latest_version(baseline_db)
+ if not version:
+  if baseline_db is not db:baseline_db.close()
+  db.close()
+  raise RuntimeError('P0-6 baseline is required.')
+ hasq='eligibility_results' in {r[0] for r in db.execute("select name from sqlite_master where type='table'")}
+ join=' join eligibility_results e using(report_hash,fight_id,actor_hash)' if hasq else ''
+ clauses=["p.job<>'UNKNOWN'"]
+ params=[]
+ if hasq:clauses.append('e.hard_eligible=1')
+ if report_hash is not None and fight_id is not None:
+  clauses.extend(['p.report_hash=?','p.fight_id=?'])
+  params.extend([report_hash,fight_id])
+ where=' where '+' and '.join(clauses) if clauses else ''
  q=f'''select p.report_hash,p.fight_id,p.actor_hash,p.job,p.partition_id,p.patch,p.encounter_id,p.difficulty,p.phase,p.duration_ms,p.active_ratio,p.action_count,p.total_damage,p.kill_time_bucket from player_features p {join} {where}'''
- rows=db.execute(q).fetchall();cur=db.execute('insert into job_analysis_runs(baseline_version,rules_version,players,findings) values(?,?,?,0)',(version,rules['version'],len(rows)));run_id=cur.lastrowid;total=0
+ rows=db.execute(q,params).fetchall();cur=db.execute('insert into job_analysis_runs(baseline_version,rules_version,players,findings) values(?,?,?,0)',(version,rules['version'],len(rows)));run_id=cur.lastrowid;total=0
  for row in rows:
-  cell,findings=analyse_player(db,row,version,rules)
+  cell,findings=analyse_player(db,baseline_db,row,version,rules)
   for f in findings:
    vals=(run_id,row[0],row[1],row[2],row[3],cell,f['category'],f['severity'],f['code'],f['message'],f['actual'],f['low'],f['median'],f['high'],f['confidence'],json.dumps(f['evidence'],ensure_ascii=False,separators=(',',':')));db.execute('insert into job_analysis_results values('+','.join('?'*len(vals))+')',vals);total+=1
- db.execute('update job_analysis_runs set findings=? where run_id=?',(total,run_id));db.commit();db.close();return {'run_id':run_id,'baseline_version':version,'rules_version':rules['version'],'players':len(rows),'findings':total}
+ db.execute('update job_analysis_runs set findings=? where run_id=?',(total,run_id));db.commit()
+ if baseline_db is not db:baseline_db.close()
+ db.close()
+ return {'run_id':run_id,'baseline_version':version,'rules_version':rules['version'],'players':len(rows),'findings':total}
 def main():
  p=argparse.ArgumentParser();p.add_argument('--db',required=True);p.add_argument('--rules');p.add_argument('--baseline-version');a=p.parse_args();print(json.dumps(run(a.db,a.rules,a.baseline_version),ensure_ascii=False,indent=2))
 if __name__=='__main__':main()

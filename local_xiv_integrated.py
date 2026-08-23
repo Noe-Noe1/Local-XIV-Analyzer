@@ -4,7 +4,7 @@ P0-1 public Clear collector and P0-2 comparison-cell builder are internal module
 Secrets are accepted in-memory only and are never persisted by this application.
 """
 from __future__ import annotations
-import csv,json,os,sqlite3,threading,tkinter as tk
+import csv,json,os,sqlite3,threading,time,tkinter as tk
 from pathlib import Path
 from tkinter import filedialog,messagebox,ttk
 from fflogs_clear_collector import Client,collect_report,init_db
@@ -18,7 +18,7 @@ from job_boss_analysis_engine import run as run_boss_analysis
 from healing_mitigation_engine import run as run_healing
 from damage_allocation_engine import run as run_allocation
 
-APP='Local XIV Analyzer 1.2.0'; HOME=Path.home()/'LocalXIVAnalyzer'; DB=HOME/'fflogs_clear.sqlite3'; CACHE=HOME/'fflogs_cache'; DATA=HOME/'fflogs_dataset'
+APP='Local XIV Analyzer 1.2.0'; HOME=Path.home()/'LocalXIVAnalyzer'; DB=HOME/'fflogs_clear.sqlite3'; CACHE=HOME/'fflogs_cache'; DATA=HOME/'fflogs_dataset'; BASELINE_DB=HOME/'baseline_reference.sqlite3'
 
 class CredentialsDialog(tk.Toplevel):
  def __init__(self,parent):
@@ -77,14 +77,458 @@ class App(tk.Tk):
   for x,h,w in zip(cols,['セルキー','ジョブ','件数','信頼度','Active中央値','行動/分','Damage/分'],[420,80,70,90,110,100,130]):self.cells_tree.heading(x,text=h);self.cells_tree.column(x,width=w)
   self.cells_tree.pack(fill='both',expand=True)
   i=ttk.Frame(self.tabs);self.tabs.add(i,text='状態・プライバシー');self.info=tk.Text(i,wrap='word');self.info.pack(fill='both',expand=True)
+  result_page=ttk.Frame(self.tabs)
+  self.tabs.add(result_page,text='\u89e3\u6790\u7d50\u679c')
+  self.result_tabs=ttk.Notebook(result_page)
+  self.result_tabs.pack(fill='both',expand=True)
+  self.result_views={}
+  for key,label in (
+   ('overview','\u6226\u95d8\u6982\u8981'),
+   ('findings','\u30c1\u30a7\u30c3\u30af\u30ea\u30b9\u30c8'),
+   ('damage','rDPS\u30fb\u30b7\u30ca\u30b8\u30fc'),
+   ('deaths','\u6226\u95d8\u4e0d\u80fd'),
+   ('healing','\u56de\u5fa9\u30fb\u8efd\u6e1b'),
+  ):
+   page=ttk.Frame(self.result_tabs)
+   self.result_tabs.add(page,text=label)
+   view=tk.Text(
+    page,
+    wrap='word',
+    font=('Yu Gothic UI',10),
+    padx=14,
+    pady=14,
+    spacing1=4,
+    spacing3=8
+   )
+   view.pack(fill='both',expand=True)
+   if key=='findings':
+    view.tag_configure(
+     'critical',
+     background='#ffe5e5',
+     foreground='#8b0000',
+     font=('Yu Gothic UI',10,'bold'),
+     lmargin1=12,lmargin2=12,rmargin=12,
+     spacing1=10,spacing3=10
+    )
+    view.tag_configure(
+     'warning',
+     background='#fff4d6',
+     foreground='#6b4d00',
+     font=('Yu Gothic UI',10,'bold'),
+     lmargin1=12,lmargin2=12,rmargin=12,
+     spacing1=10,spacing3=10
+    )
+    view.tag_configure(
+     'info',
+     background='#e8f3ff',
+     foreground='#174a73',
+     font=('Yu Gothic UI',10),
+     lmargin1=12,lmargin2=12,rmargin=12,
+     spacing1=10,spacing3=10
+    )
+    view.tag_configure(
+     'success',
+     background='#e4f6e8',
+     foreground='#165c2a',
+     font=('Yu Gothic UI',10,'bold'),
+     lmargin1=12,lmargin2=12,rmargin=12,
+     spacing1=10,spacing3=10
+    )
+   self.result_views[key]=view
  def work(self,label,fn):
   self.status.set(label);self.pb.start(10)
   def run():
    try:r=fn();self.after(0,lambda:self.done(r))
    except Exception as e:self.after(0,lambda: self.failed(e))
   threading.Thread(target=run,daemon=True).start()
- def done(self,r):self.pb.stop();self.status.set(str(r));self.refresh()
+ def done(self,r):
+  self.pb.stop()
+  if isinstance(r,dict) and r.get('kind')=='analysis_result':
+   self.status.set(r['message'])
+   self.render_analysis_result(r['report_hash'],r['fight_id'])
+   self.refresh()
+   return
+  self.status.set(str(r))
+  self.refresh()
  def failed(self,e):self.pb.stop();self.status.set('失敗');messagebox.showerror(APP,str(e))
+ def set_result_text(self,key,text):
+  view=self.result_views[key]
+  view.delete('1.0','end')
+  view.insert('end',text)
+
+ def render_analysis_result(self,report_hash,fight_id):
+  db=sqlite3.connect(DB)
+  fight=db.execute(
+   'select name,start,end from fights where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()
+  if not fight:
+   db.close();return
+  content,start,end=fight
+  player_jobs=dict(db.execute(
+   'select actor_hash,job from fight_players '
+   'where report_hash=? and fight_id=? and job<>?',
+   (report_hash,fight_id,'UNKNOWN')
+  ).fetchall())
+
+  def actor_label(actor):
+   job=player_jobs.get(actor)
+   return (f'{job} [{actor[:6]}]' if job else f'\u4e0d\u660e [{actor[:6]}]')
+
+  warning_labels={
+   'crit_dh_allocation_estimated':'\u30af\u30ea\u30c6\u30a3\u30ab\u30eb\u30fb\u30c0\u30a4\u30ec\u30af\u30c8\u30d2\u30c3\u30c8\u5bc4\u4e0e\u306f\u671f\u5f85\u5024\u63a8\u5b9a',
+   'action_value_fallback_used':'\u30a2\u30af\u30b7\u30e7\u30f3\u56fa\u6709\u5024\u3092\u53d6\u5f97\u3067\u304d\u305a\u65e2\u5b9a\u5024\u3092\u4f7f\u7528',
+  }
+
+  def warning_text(codes):
+   return ' / '.join(
+    warning_labels.get(code,code)
+    for code in str(codes).split(',')
+    if code
+   )
+
+  ability_names={}
+  for payload, in db.execute(
+   'select payload from events '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ):
+   try:
+    event=json.loads(payload)
+   except Exception:
+    continue
+   ability_id=event.get('abilityGameID')
+   ability_name=event.get('abilityName')
+   if ability_id and ability_name:
+    ability_names[str(ability_id)]=ability_name
+
+  def ability_label(ability_id):
+   key=str(ability_id)
+   return ability_names.get(key,f'ID {key}')
+
+  seconds=int(max(float(end)-float(start),0)/1000)
+  overview=(
+   f'\u30b3\u30f3\u30c6\u30f3\u30c4: {content}\n'
+   f'Pull: {fight_id}\n'
+   f'\u6226\u95d8\u6642\u9593: {seconds//60:02d}:{seconds%60:02d}\n'
+  )
+  self.set_result_text('overview',overview)
+
+  boss_run=db.execute(
+   'select max(run_id) from boss_analysis_results '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  finding_lines=[]
+  if boss_run is not None:
+   rows=db.execute(
+    'select severity,category,message,timestamp '
+    'from boss_analysis_results '
+    'where run_id=? and report_hash=? and fight_id=? '
+    'order by timestamp',
+    (boss_run,report_hash,fight_id)
+   ).fetchall()
+   for severity,category,message,timestamp in rows:
+    elapsed=max(0,int((float(timestamp)-float(start))/1000))
+    finding_lines.append(
+     f'[{severity.upper()}] {elapsed//60:02d}:{elapsed%60:02d} '
+     f'{category}: {message}'
+    )
+  finding_view=self.result_views['findings']
+  finding_view.delete('1.0','end')
+
+  def checklist_card(tag,title,detail):
+   finding_view.insert('end',title+'\n'+detail+'\n',tag)
+   finding_view.insert('end','\n')
+
+  latest_death_run=db.execute(
+   'select max(run_id) from death_windows '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  death_count=0
+  if latest_death_run is not None:
+   death_count=db.execute(
+    'select count(*) from death_windows '
+    'where run_id=? and report_hash=? and fight_id=?',
+    (latest_death_run,report_hash,fight_id)
+   ).fetchone()[0]
+  if death_count==0:
+   checklist_card('success','\u9054\u6210  \u6226\u95d8\u4e0d\u80fd\u3092\u907f\u3051\u308b','\u6226\u95d8\u4e0d\u80fd\u306f\u691c\u51fa\u3055\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002')
+  else:
+   checklist_card('critical',f'\u91cd\u5927  \u6226\u95d8\u4e0d\u80fd\u3092\u907f\u3051\u308b',f'{death_count}\u56de\u306e\u6226\u95d8\u4e0d\u80fd\u3092\u691c\u51fa\u3057\u307e\u3057\u305f\u3002\u8a73\u7d30\u306f\u300c\u6226\u95d8\u4e0d\u80fd\u300d\u3092\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002')
+
+  player_count=len(player_jobs)
+  if player_count==8:
+   checklist_card('success','\u9054\u6210  \u30d1\u30fc\u30c6\u30a3\u69cb\u6210','8\u540d\u5168\u54e1\u306e\u30b8\u30e7\u30d6\u3092\u8b58\u5225\u3067\u304d\u307e\u3057\u305f\u3002')
+  else:
+   checklist_card('warning','\u6ce8\u610f  \u30d1\u30fc\u30c6\u30a3\u69cb\u6210',f'\u8b58\u5225\u3067\u304d\u305f\u30d7\u30ec\u30a4\u30e4\u30fc\u306f {player_count}/8 \u540d\u3067\u3059\u3002')
+
+  metric_run=db.execute(
+   'select max(run_id) from dps_metrics '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  metric_count=low_count=0
+  if metric_run is not None:
+   metric_count=db.execute(
+    "select count(*) from dps_metrics d "
+    "join fight_players p "
+    "on p.report_hash=d.report_hash "
+    "and p.fight_id=d.fight_id "
+    "and p.actor_hash=d.actor_hash "
+    "where d.run_id=? and d.report_hash=? and d.fight_id=? "
+    "and p.job<>'UNKNOWN'",
+    (metric_run,report_hash,fight_id)
+   ).fetchone()[0]
+   low_count=db.execute(
+    "select count(*) from dps_metrics d "
+    "join fight_players p "
+    "on p.report_hash=d.report_hash "
+    "and p.fight_id=d.fight_id "
+    "and p.actor_hash=d.actor_hash "
+    "where d.run_id=? and d.report_hash=? and d.fight_id=? "
+    "and p.job<>'UNKNOWN' and d.confidence='low'",
+    (metric_run,report_hash,fight_id)
+   ).fetchone()[0]
+  if metric_count>=player_count and low_count==0:
+   checklist_card('success','\u9054\u6210  rDPS\u30fb\u30b7\u30ca\u30b8\u30fc','\u30d7\u30ec\u30a4\u30e4\u30fc\u5168\u54e1\u306erDPS\u6307\u6a19\u3092\u751f\u6210\u3067\u304d\u307e\u3057\u305f\u3002')
+  else:
+   checklist_card('warning','\u6ce8\u610f  rDPS\u30fb\u30b7\u30ca\u30b8\u30fc',f'\u6307\u6a19 {metric_count}\u4ef6 / \u4f4e\u4fe1\u983c\u5ea6 {low_count}\u4ef6\u3002\u63a8\u5b9a\u5024\u3092\u542b\u3080\u5834\u5408\u304c\u3042\u308a\u307e\u3059\u3002')
+
+  healing_rows=db.execute(
+   'select count(*) from healing_metrics '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  mitigation_rows=db.execute(
+   'select count(*) from mitigation_metrics '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  if healing_rows or mitigation_rows:
+   checklist_card('success','\u9054\u6210  \u56de\u5fa9\u30fb\u8efd\u6e1b',f'\u56de\u5fa9 {healing_rows}\u4ef6 / \u8efd\u6e1b {mitigation_rows}\u4ef6\u306e\u6307\u6a19\u3092\u751f\u6210\u3057\u307e\u3057\u305f\u3002')
+  else:
+   checklist_card('info','\u60c5\u5831  \u56de\u5fa9\u30fb\u8efd\u6e1b','\u73fe\u5728\u306eACT\u53d6\u8fbc\u30c7\u30fc\u30bf\u3067\u306f\u8a73\u7d30\u6307\u6a19\u3092\u751f\u6210\u3067\u304d\u307e\u305b\u3093\u3002')
+
+  if boss_run is not None and rows:
+   grouped={}
+   for severity,category,message,timestamp in rows:
+    if category=='survival':
+     continue
+    grouped.setdefault((severity,category,message),[]).append(timestamp)
+   for (severity,category,message),timestamps in grouped.items():
+    tag='critical' if severity in {'critical','major'} else 'warning'
+    times=[]
+    for timestamp in timestamps:
+     elapsed=max(0,int((float(timestamp)-float(start))/1000))
+     times.append(f'{elapsed//60:02d}:{elapsed%60:02d}')
+    checklist_card(tag,f'\u8ffd\u52a0\u6240\u898b  {len(times)}\u4ef6',f'{message}\n\u767a\u751f\u6642\u523b: {chr(44).join(times)}')
+
+
+  # JOB_CHECKLIST_CARDS
+  job_run=db.execute(
+   'select max(run_id) from job_analysis_results '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+
+  if job_run is not None:
+   job_rows=db.execute(
+    'select actor_hash,job,code,severity,actual,'
+    'expected_low,evidence_json '
+    'from job_analysis_results '
+    'where run_id=? and report_hash=? and fight_id=? '
+    "and job<>'UNKNOWN'",
+    (job_run,report_hash,fight_id)
+   ).fetchall()
+
+   grouped_job={}
+   for actor,job,code,severity,actual,low,evidence in job_rows:
+    grouped_job.setdefault(
+     (actor,job,code),[]
+    ).append((severity,actual,low,evidence))
+
+   code_labels={
+    'long_action_gap':'GCD\u30fb\u884c\u52d5\u505c\u6b62',
+    'low_action_usage':'\u4e3b\u8981\u30a2\u30af\u30b7\u30e7\u30f3\u4f7f\u7528',
+    'below_actions_per_min':'\u884c\u52d5\u983b\u5ea6',
+    'below_active_ratio':'\u7a3c\u50cd\u7387',
+    'below_damage_per_min':'\u30c0\u30e1\u30fc\u30b8\u53c2\u8003\u5024',
+    'combo_incomplete':'\u30b3\u30f3\u30dc\u5b8c\u9042',
+    'cooldown_delay':'\u30ea\u30ad\u30e3\u30b9\u30c8\u4f7f\u7528',
+    'required_action_missing':'\u5fc5\u9808\u30a2\u30af\u30b7\u30e7\u30f3',
+   }
+
+   for (actor,job,code),items in grouped_job.items():
+    label=code_labels.get(code,code)
+    major=any(
+     str(item[0]).lower() in {'major','critical'}
+     for item in items
+    )
+    tag='critical' if major else 'warning'
+    title=(
+     ('\u91cd\u5927' if major else '\u6ce8\u610f')
+     + f'  {actor_label(actor)}  {label}'
+    )
+
+    if code=='long_action_gap':
+     gaps=[]
+     for _,_,_,evidence in items:
+      try:
+       gaps.extend(
+        json.loads(evidence or '{}').get('gaps_ms',[])
+       )
+      except Exception:
+       pass
+     maximum=max(gaps,default=0)/1000
+     detail=(
+      f'\u9577\u3044\u884c\u52d5\u505c\u6b62\u3092 {len(gaps)}'
+      f'\u56de\u691c\u51fa\u3057\u307e\u3057\u305f\u3002'
+      f' \u6700\u5927 {maximum:.1f}\u79d2\u3067\u3059\u3002'
+     )
+
+    elif code=='low_action_usage':
+     abilities=[]
+     for _,_,_,evidence in items:
+      try:
+       ability=json.loads(
+        evidence or '{}'
+       ).get('ability_id')
+       if ability:
+        abilities.append(str(ability))
+      except Exception:
+       pass
+     unique=sorted(set(abilities))
+     detail=(
+      f'\u6bd4\u8f03\u57fa\u6e96\u3088\u308a\u4f7f\u7528\u983b\u5ea6'
+      f'\u304c\u4f4e\u3044\u30a2\u30af\u30b7\u30e7\u30f3\u304c '
+      f'{len(unique)}\u4ef6\u3042\u308a\u307e\u3059\u3002'
+     )
+     if unique:
+      names=[ability_label(ability_id) for ability_id in unique]
+      detail+=f' ??: {", ".join(names)}'
+
+    elif code=='below_active_ratio':
+     actual=items[0][1]
+     low=items[0][2]
+     detail=(
+      f'\u7a3c\u50cd\u7387 {float(actual or 0):.1%}\u3002'
+      f' \u6bd4\u8f03\u57fa\u6e96\u306e\u4e0b\u9650\u306f '
+      f'{float(low or 0):.1%}\u3067\u3059\u3002'
+     )
+
+    elif code=='below_actions_per_min':
+     actual=items[0][1]
+     low=items[0][2]
+     detail=(
+      f'1\u5206\u3042\u305f\u308a\u306e\u884c\u52d5\u6570 '
+      f'{float(actual or 0):.1f}\u3002'
+      f' \u6bd4\u8f03\u57fa\u6e96\u306e\u4e0b\u9650\u306f '
+      f'{float(low or 0):.1f}\u3067\u3059\u3002'
+     )
+
+    elif code=='below_damage_per_min':
+     actual=items[0][1]
+     low=items[0][2]
+     detail=(
+      f'1\u5206\u3042\u305f\u308a\u30c0\u30e1\u30fc\u30b8 '
+      f'{float(actual or 0):,.0f}\u3002'
+      f' \u6bd4\u8f03\u57fa\u6e96\u306e\u4e0b\u9650\u306f '
+      f'{float(low or 0):,.0f}\u3067\u3059\u3002'
+     )
+
+    else:
+     detail=(
+      f'{len(items)}\u4ef6\u306e\u6539\u5584\u5019\u88dc\u3092'
+      f'\u691c\u51fa\u3057\u307e\u3057\u305f\u3002'
+     )
+
+    checklist_card(tag,title,detail)
+
+  allocation_run=db.execute(
+   'select max(run_id) from dps_metrics '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  damage_lines=[]
+  if allocation_run is not None:
+   rows=db.execute(
+    'select d.actor_hash,d.dps,d.rdps,d.external_gain,'
+    'd.own_contribution,d.confidence,d.warnings '
+    'from dps_metrics d '
+    'join fight_players p '
+    'on p.report_hash=d.report_hash '
+    'and p.fight_id=d.fight_id '
+    'and p.actor_hash=d.actor_hash '
+    'where d.run_id=? and d.report_hash=? and d.fight_id=? '
+    "and p.job<>'UNKNOWN' "
+    'order by d.rdps desc',
+    (allocation_run,report_hash,fight_id)
+   ).fetchall()
+   damage_lines.append(
+    '\u30a2\u30af\u30bf\u30fc                 DPS       rDPS      '
+    '\u53d7\u3051\u305f\u30b7\u30ca\u30b8\u30fc   \u4e0e\u3048\u305f\u30b7\u30ca\u30b8\u30fc  \u4fe1\u983c\u5ea6'
+   )
+   for actor,dps,rdps,gain,given,confidence,warnings in rows:
+    damage_lines.append(
+     f'{actor_label(actor):14} {dps:10.1f} {rdps:10.1f} '
+     f'{gain:10.0f} {given:12.0f}  {confidence}'
+    )
+    if warnings:
+     damage_lines.append(f'  \u6ce8\u610f: {warning_text(warnings)}')
+  self.set_result_text(
+   'damage',
+   '\n'.join(damage_lines) or 'rDPS\u30fb\u30b7\u30ca\u30b8\u30fc\u30c7\u30fc\u30bf\u306f\u3042\u308a\u307e\u305b\u3093\u3002'
+  )
+
+  death_run=db.execute(
+   'select max(run_id) from death_windows '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  death_lines=[]
+  if death_run is not None:
+   rows=db.execute(
+    'select target_actor,death_timestamp,incoming_damage,'
+    'effective_healing,last_hit_ability,last_hit_amount '
+    'from death_windows where run_id=? and report_hash=? and fight_id=? '
+    'order by death_timestamp',
+    (death_run,report_hash,fight_id)
+   ).fetchall()
+   for actor,timestamp,incoming,healing,ability,last_amount in rows:
+    elapsed=max(0,int((float(timestamp)-float(start))/1000))
+    death_lines.append(
+     f'{elapsed//60:02d}:{elapsed%60:02d} {actor_label(actor)} '
+     f'\u88ab\u30c0\u30e1\u30fc\u30b8 {incoming:.0f} / '
+     f'\u6709\u52b9\u56de\u5fa9 {healing:.0f} / '
+     f'\u6700\u7d42 {ability_label(ability)} ({last_amount:.0f})'
+    )
+  self.set_result_text(
+   'deaths',
+   '\n'.join(death_lines) or '\u6226\u95d8\u4e0d\u80fd\u306f\u691c\u51fa\u3055\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002'
+  )
+
+  healing_count=db.execute(
+   'select count(*) from healing_metrics '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  mitigation_count=db.execute(
+   'select count(*) from mitigation_metrics '
+   'where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  ).fetchone()[0]
+  healing_text=(
+   f'\u56de\u5fa9\u6307\u6a19: {healing_count}\u4ef6\n'
+   f'\u8efd\u6e1b\u6307\u6a19: {mitigation_count}\u4ef6'
+  )
+  if healing_count==0 and mitigation_count==0:
+   healing_text+='\n\u73fe\u5728\u306eACT\u53d6\u8fbc\u30c7\u30fc\u30bf\u3067\u306f\u8a73\u7d30\u6307\u6a19\u3092\u751f\u6210\u3067\u304d\u307e\u305b\u3093\u3002'
+  self.set_result_text('healing',healing_text)
+  db.close()
+  self.tabs.select(self.tabs.index('end')-1)
+
  def collect_dialog(self):
   d=CredentialsDialog(self);self.wait_window(d)
   if not d.result:return
@@ -105,11 +549,11 @@ class App(tk.Tk):
  def selected_fight(self):
   selected=self.fights.selection()
   if not selected:
-   messagebox.showinfo(APP,'????????????????????')
+   messagebox.showinfo(APP,'\u89e3\u6790\u3059\u308b\u6226\u95d8\u3092\u4e00\u89a7\u304b\u3089\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002')
    return None
   values=self.fights.item(selected[0],'values')
   if len(values)<9:
-   messagebox.showerror(APP,'?????????????????')
+   messagebox.showinfo(APP,'\u30b3\u30f3\u30c6\u30f3\u30c4\u898b\u51fa\u3057\u3067\u306f\u306a\u304fPull\u884c\u3092\u9078\u629e\u3057\u3066\u304f\u3060\u3055\u3044\u3002')
    return None
   return str(values[7]),int(values[8])
 
@@ -119,24 +563,57 @@ class App(tk.Tk):
   report_hash,fight_id=selected
   rules_path=Path(__file__).with_name('allocation_rules.example.json')
   def task():
+   timings={}
+   started=time.perf_counter()
+   build_cells(
+    DB,
+    report_hash=report_hash,
+    fight_id=fight_id
+   )
+   timings['build_cells']=time.perf_counter()-started
+   started=time.perf_counter()
+   job=run_job_analysis(
+    DB,
+    report_hash=report_hash,
+    fight_id=fight_id,
+    baseline_db_path=BASELINE_DB
+   )
+   timings['job_analysis']=time.perf_counter()-started
+   started=time.perf_counter()
    boss=run_boss_analysis(
     DB,report_hash=report_hash,fight_id=fight_id
    )
+   timings['boss_analysis']=time.perf_counter()-started
+   started=time.perf_counter()
    allocation=run_allocation(
     DB,
     str(rules_path) if rules_path.exists() else None,
     report_hash=report_hash,
     fight_id=fight_id
    )
+   timings['damage_allocation']=time.perf_counter()-started
+   started=time.perf_counter()
    healing=run_healing(
     DB,report_hash=report_hash,fight_id=fight_id
    )
-   return (
+   timings['healing_mitigation']=time.perf_counter()-started
+   Path('logs/analysis_timing.txt').write_text(
+    '\n'.join(f'{k}={v:.3f}s' for k,v in timings.items())+'\n',
+    encoding='utf-8'
+   )
+   message=(
     f'\u6226\u95d8 {fight_id} \u89e3\u6790\u5b8c\u4e86: '
-    f'\u30dc\u30b9\u6240\u898b {boss["findings"]}\u4ef6 / '
-    f'\u706b\u529b\u914d\u8ce6 {allocation["allocated_damage"]:.0f} / '
+    f'????? {job["findings"]}? / '
+    f'???? {boss["findings"]}? / '
+    f'rDPS\u30fb\u30b7\u30ca\u30b8\u30fc {allocation["allocated_damage"]:.0f} / '
     f'\u56de\u5fa9\u30fb\u8efd\u6e1b\u8b66\u544a {healing["warnings"]}\u4ef6'
    )
+   return {
+    'kind':'analysis_result',
+    'message':message,
+    'report_hash':report_hash,
+    'fight_id':fight_id,
+   }
   self.work('\u9078\u629e\u6226\u95d8\u3092\u89e3\u6790\u4e2d...',task)
 
  def import_act_log(self):

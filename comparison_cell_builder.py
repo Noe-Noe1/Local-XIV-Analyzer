@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Build comparable Clear-log cells from the anonymized FFLogs collector SQLite DB.
 
 A cell is strictly keyed by partition, encounter, difficulty, phase, job, and
@@ -81,7 +81,7 @@ def bucket(value,cuts):
  q1,q3=cuts
  return 'fast' if value<=q1 else 'slow' if value>=q3 else 'mid'
 
-def build(src,out=None,job_map_path=None,min_active=.85,weakness_ids=None):
+def build(src,out=None,job_map_path=None,min_active=.85,weakness_ids=None,report_hash=None,fight_id=None):
  src=Path(src); out=Path(out or src)
  db=sqlite3.connect(out)
  if out.resolve()!=src.resolve():
@@ -95,25 +95,72 @@ def build(src,out=None,job_map_path=None,min_active=.85,weakness_ids=None):
  from fights f left join fight_context c using(report_hash,fight_id)'''
  for r in db.execute(q):
   fights.append({'rh':r[0],'fid':r[1],'encounter':r[2] or 0,'difficulty':r[3] or 0,'start':float(r[4] or 0),'end':float(r[5] or 0),'duration':max(float(r[5] or 0)-float(r[4] or 0),1),'partition':r[6],'patch':r[7],'phase':r[8]})
- cuts=duration_buckets(fights);db.execute('delete from player_features');db.execute('delete from comparison_cells')
+ cuts=duration_buckets(fights)
+
+ if report_hash is not None and fight_id is not None:
+  db.execute(
+   'delete from player_features where report_hash=? and fight_id=?',
+   (report_hash,fight_id)
+  )
+ else:
+  db.execute('delete from player_features')
+
+ db.execute('delete from comparison_cells')
  for f in fights:
   events=[]
-  for (payload,) in db.execute('select payload from events where report_hash=? and fight_id=? order by seq',(f['rh'],f['fid'])):
-   try:events.append(json.loads(payload))
-   except:pass
-  kt=bucket(f['duration'],cuts[(f['partition'],f['encounter'],f['difficulty'])])
-  for aid,job in db.execute('select actor_hash,job from fight_players where report_hash=? and fight_id=?',(f['rh'],f['fid'])):
-   ae=[e for e in events if event_actor(e)==aid]; times=[float(e.get('timestamp',0)) for e in ae if str(e.get('type','')).lower() in ACTION_TYPES and e.get('timestamp') is not None]
+  by_source={}
+  by_target={}
+  for (payload,) in db.execute(
+   'select payload from events where report_hash=? and fight_id=? order by seq',
+   (f['rh'],f['fid'])
+  ):
+   try:
+    e=json.loads(payload)
+   except Exception:
+    continue
+   e['_type']=str(e.get('type','')).lower()
+   events.append(e)
+   by_source.setdefault(event_actor(e),[]).append(e)
+   target=str(e.get('targetID') or '')
+   if target:
+    by_target.setdefault(target,[]).append(e)
+  kt=bucket(f['duration'],cuts[
+   (f['partition'],f['encounter'],f['difficulty'])
+  ])
+  for aid,job in db.execute(
+   'select actor_hash,job from fight_players '
+   'where report_hash=? and fight_id=?',
+   (f['rh'],f['fid'])
+  ):
+   ae=by_source.get(aid,[])
+   targeted=by_target.get(aid,[])
+   times=[
+    float(e.get('timestamp',0)) for e in ae
+    if e['_type'] in ACTION_TYPES
+    and e.get('timestamp') is not None
+   ]
    active=max(times)-min(times) if len(times)>=2 else 0
    effective=f['duration']
    if has_effective:
-    row=db.execute('select effective_ms from effective_time where report_hash=? and fight_id=? and actor_hash=?',(f['rh'],f['fid'],aid)).fetchone()
-    if row and row[0] and row[0]>0:effective=float(row[0])
+    row=db.execute(
+     'select effective_ms from effective_time '
+     'where report_hash=? and fight_id=? and actor_hash=?',
+     (f['rh'],f['fid'],aid)
+    ).fetchone()
+    if row and row[0] and row[0]>0:
+     effective=float(row[0])
    ratio=max(0,min(1,active/effective))
-   actions=sum(str(e.get('type','')).lower() in ACTION_TYPES for e in ae);casts=sum(str(e.get('type','')).lower() in CAST_TYPES for e in ae)
-   dmg=[e for e in ae if str(e.get('type','')).lower() in DAMAGE_TYPES];total=sum(float(e.get('amount') or 0) for e in dmg)
-   deaths=sum(str(e.get('type','')).lower() in DEATH_TYPES for e in events if str(e.get('targetID') or '')==aid)
-   weak=sum(int(e.get('abilityGameID') or e.get('ability',{}).get('guid') or 0) in weakness for e in events if str(e.get('targetID') or '')==aid and str(e.get('type','')).lower() in {'applybuff','refreshbuff'})
+   actions=sum(e['_type'] in ACTION_TYPES for e in ae)
+   casts=sum(e['_type'] in CAST_TYPES for e in ae)
+   dmg=[e for e in ae if e['_type'] in DAMAGE_TYPES]
+   total=sum(float(e.get('amount') or 0) for e in dmg)
+   deaths=sum(e['_type'] in DEATH_TYPES for e in targeted)
+   weak=sum(
+    int(e.get('abilityGameID') or
+        e.get('ability',{}).get('guid') or 0) in weakness
+    for e in targeted
+    if e['_type'] in {'applybuff','refreshbuff'}
+   )
    reasons=[]
    if job=='UNKNOWN':reasons.append('job_unknown')
    if ratio<min_active:reasons.append('low_active_ratio')

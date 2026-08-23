@@ -3,10 +3,10 @@
 ## Current Status
 
 - Version: 1.2.0
-- Last Updated: 2026-08-22
-- Branch: main
-- Repository Status: origin/main と同期済み
-- Working Tree: clean
+- Last Updated: 2026-08-23
+- Branch: feature/analysis-results-view
+- Repository Status: 作業中・未コミット
+- Working Tree: modified
 
 ---
 
@@ -265,3 +265,37 @@
 - Selected-fight analysis runs boss, damage allocation, and healing/mitigation analysis
 - GUI and syntax checks: PASS
 
+---
+
+## Selected-fight Analysis Performance
+
+- Last Updated: 2026-08-23
+- Branch: `feature/analysis-results-view`
+- Status: Implemented / Regression Tested
+- `comparison_cell_builder.py` に戦闘単位フィルターを追加
+- イベントを送信元・対象別に索引化
+- `build_cells` 実測:
+  - Before: `36.017s`
+  - After: `9.252s`
+  - Reduction: approximately `74.3%`
+- Regression validation:
+  - `player_features`: 18,205 / 18,205, matched
+  - `comparison_cells`: 150 / 150, matched
+  - Result: `REGRESSION=PASS`
+- Syntax checks: PASS
+- Direct test suite: 3 / 3 PASS
+- Final validation: PASS
+- `git diff --check`: PASS
+- テスト対象戦闘では解析結果の同一性を確認
+- 残課題:
+  - ソース差分の確認
+  - ローカルDB・ログ・バックアップのGit除外: PASS
+  - 引継ぎ資料の文字・構造検証: PASS
+  - ROADMAP同期: PASS
+  - 最終テスト後のcommit・Push・PR・merge・main同期
+
+## Execution Log Policy
+
+- 各検証で `logs/result.txt` を生成する
+- 匿名化済み `logs/powershell.txt` も同時に生成・確認する
+- raw PowerShellログ、ACTログ、DB、個人情報を含む結果はGitへ追加しない
