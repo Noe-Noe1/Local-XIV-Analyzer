@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse,json,math,sqlite3
 from collections import defaultdict
 from pathlib import Path
+from rule_registry import load_registry
 SCHEMA='''
 create table if not exists healing_runs(run_id integer primary key autoincrement,created_at text default current_timestamp,rules_version text,fights integer,events integer,warnings integer);
 create table if not exists healing_metrics(run_id integer,report_hash text,fight_id integer,actor_hash text,duration_ms real,raw_healing real,effective_healing real,overheal real,absorbed real,hps real,ehps real,targets integer,confidence text,warnings text,primary key(run_id,report_hash,fight_id,actor_hash));
@@ -14,9 +15,7 @@ create table if not exists death_windows(run_id integer,report_hash text,fight_i
 DEFAULT={'version':'p0-10.rules.1','mitigations':{}}
 def load(path=None):
  if not path:return DEFAULT
- x=json.loads(Path(path).read_text(encoding='utf-8'))
- if not x.get('version') or not isinstance(x.get('mitigations'),dict):raise ValueError('Invalid mitigation rules')
- return x
+ return load_registry("mitigation",path).as_dict()
 def typ(e):return str(e.get('type','')).lower()
 def ts(e):return float(e.get('timestamp') or 0)
 def actor(e,k):return str(e.get(k) or '')

@@ -14,6 +14,7 @@ import math
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
+from rule_registry import load_registry
 
 SCHEMA = """
 create table if not exists allocation_runs(
@@ -40,10 +41,7 @@ DEFAULT_RULES = {"version": "p0-9.rules.1", "buffs": {}}
 def load_rules(path=None):
     if not path:
         return DEFAULT_RULES
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not data.get("version") or not isinstance(data.get("buffs"), dict):
-        raise ValueError("Invalid allocation rules")
-    return data
+    return load_registry("buff", path).as_dict()
 
 
 def event_type(event):
