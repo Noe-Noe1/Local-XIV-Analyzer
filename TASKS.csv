@@ -2,3 +2,4 @@
 PERF-001,選択戦闘の比較セル生成高速化,Tested,High,解析品質を維持して処理時間を短縮,36.017s -> 9.252s; regression PASS; direct tests 3/3 PASS
 DOC-001,進捗・引継ぎ・履歴・目標の同期,Tested,High,PROJECT_STATUS・TASKS・ROADMAP・引継ぎ資料が整合,PROJECT_STATUS・TASKS・ROADMAP・引継ぎ資料の同期PASS
 REPO-001,未追跡ログ・DB・バックアップの整理,Tested,High,個人データをGit対象外にし必要なソースだけ残す,.gitignoreを作成し、ログ・DB・キャッシュ・バックアップをGit除外
+HANDOFF-001,?????????????????????,Tested,High,????????????????main??????,PR #12 merged; main 04e9a5e; policy synchronized
