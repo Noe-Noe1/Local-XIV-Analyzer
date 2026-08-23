@@ -47,8 +47,8 @@ ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
 - Branch: `main`
 - Repository Status: `origin/main` synchronized
 - Working Tree: clean
-- Latest merged PR: `#15`
-- Main commit: `630c656`
+- Latest merged PR: `#17`
+- Main commit: `03ff6d6`
 - Selected-fight analysis: implemented and tested
 - Comparison-cell optimization: regression tested
 - `build_cells`: 36.017s -> 9.252s
@@ -100,7 +100,7 @@ ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
 ## P1-2 ActionEffect Foundation
 
 - Status: Implemented / Tested
-- Branch: `feature/p1-action-effect-foundation`
+- Branch: `main`
 - Explicit Critical, Direct Hit, and absorbed fields are normalized
 - Unsupported raw effects are preserved without speculative decoding
 - Unknown effects are stored in `unknown_action_effects`

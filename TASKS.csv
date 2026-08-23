@@ -4,4 +4,4 @@ DOC-001,進捗・引継ぎ・履歴・目標の同期,Tested,High,PROJECT_STATUS
 REPO-001,未追跡ログ・DB・バックアップの整理,Tested,High,個人データをGit対象外にし必要なソースだけ残す,.gitignoreを作成し、ログ・DB・キャッシュ・バックアップをGit除外
 HANDOFF-001,最新状態とチャット運用方針の同期,Tested,High,4資料がmainの最新状態と整合,PR #13 merged; main 0d4b39f
 REGISTRY-001,P1-1 Registry common foundation,Merged,High,Common loader supports existing versioned rule files,PR #15 merged; main 630c656; 9 registry tests PASS; 3 existing tests PASS
-ACTIONEFFECT-001,P1-2 ActionEffect decoder and Unknown Collector foundation,Tested,High,Normalize explicit effects and persist unsupported raw effects,14 tests PASS; persistence PASS; compile PASS
+ACTIONEFFECT-001,P1-2 ActionEffect decoder and Unknown Collector foundation,Merged,High,Normalize explicit effects and persist unsupported raw effects,PR #17 merged; main 03ff6d6; 14 tests PASS; persistence PASS
