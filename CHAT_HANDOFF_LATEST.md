@@ -47,8 +47,8 @@ ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
 - Branch: `main`
 - Repository Status: `origin/main` synchronized
 - Working Tree: clean
-- Latest merged PR: `#13`
-- Main commit: `0d4b39f`
+- Latest merged PR: `#15`
+- Main commit: `630c656`
 - Selected-fight analysis: implemented and tested
 - Comparison-cell optimization: regression tested
 - `build_cells`: 36.017s -> 9.252s
@@ -78,7 +78,7 @@ ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
 ## P1-1 Registry Foundation
 
 - Status: Implemented / Tested
-- Branch: `feature/p1-registry-foundation`
+- Branch: `main`
 - Common versioned rule loader: `rule_registry.py`
 - Supported registries: buff, mitigation, job, encounter, alias
 - Existing four JSON formats: compatible
