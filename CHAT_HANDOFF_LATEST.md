@@ -1,0 +1,36 @@
+# Local XIV Analyzer - Latest Handoff
+
+## 最終目標
+
+ACTログを外部アップロードせずローカルで解析し、
+FFLogsおよびXIVAnalysisに近い分析・改善提案を提供する。
+
+## Current State
+
+- Branch: `feature/analysis-results-view`
+- 選択戦闘解析ワークフロー: Implemented
+- イベント索引化: Implemented
+- `build_cells`: 36.017s -> 9.252s
+- Regression: PASS
+- `result.txt` と匿名化済み `powershell.txt` をセットで確認
+
+## Current Task
+
+PROJECT_STATUS、TASKS、ROADMAP、引継ぎ資料、更新履歴を同期する。
+
+## Next Task
+
+ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
+
+## Repository Safety
+
+- `.gitignore` 作成済み
+- logs、DB、Pythonキャッシュ、バックアップはGit除外
+
+## Final Validation
+
+- Direct tests: 3 / 3 PASS
+- Python compile: PASS
+- `git diff --check`: PASS
+- Regression validation: PASS
+- Next: stage only approved source and documentation files

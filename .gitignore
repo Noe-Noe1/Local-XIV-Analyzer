@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Local databases and logs
+*.sqlite3
+logs/
+
+# Local backups
+*.bak
+*.before-*
+*.pre-*
+*.timing-backup
+
+# ACT logs and archives
+*.log
+*.zip
