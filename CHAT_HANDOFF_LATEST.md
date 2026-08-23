@@ -94,3 +94,25 @@ ROADMAP同期完了。Git差分を確認し、リポジトリ整理へ進む。
 
 - P1-1 Registry foundation implementation completed and validated
 - Next: review approved diffs and integrate through PR
+
+---
+
+## P1-2 ActionEffect Foundation
+
+- Status: Implemented / Tested
+- Branch: `feature/p1-action-effect-foundation`
+- Explicit Critical, Direct Hit, and absorbed fields are normalized
+- Unsupported raw effects are preserved without speculative decoding
+- Unknown effects are stored in `unknown_action_effects`
+- Unknown-effect records contain anonymized event metadata
+- PyInstaller hidden import: updated
+- Tests: 14 PASS
+- Python compile: PASS
+- Database persistence test: PASS
+- `git diff --check`: PASS
+- Remaining: validated raw ActionEffect decoding rules and Shield State Management
+
+## Current Development Task
+
+- P1-2 conservative decoder and Unknown Collector completed
+- Next: final diff review, commit, Push, PR, merge, and main sync

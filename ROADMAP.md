@@ -47,6 +47,8 @@ Status: Designed
 
 ## P1-2 ActionEffect Framework
 
+Foundation Status: Implemented / Tested
+
 - Decoder Framework
 - Effect Type Detection
 - Rule Engine
