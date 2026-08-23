@@ -244,10 +244,8 @@ Status: Planned
 
 ## Latest Completion State
 
-- PR #12: MERGED
-- Main commit: `04e9a5e`
+- PR #13: MERGED
+- Main commit: `0d4b39f`
 - `origin/main`: synchronized
 - Working tree: clean
-- Selected-fight workflow: implemented and tested
-- Comparison-cell optimization: regression tested
-- Next: select the next prioritized development task
+- Next: detail the next prioritized development task
